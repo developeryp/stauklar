@@ -799,19 +799,32 @@ def index_page(roads, data):
 
 def legal_pages():
     imp = """<h1>Impressum</h1>
-<p class="todo">Vor Veröffentlichung ausfüllen: Angaben nach § 5 DDG.</p>
-<p>[Vor- und Nachname]<br>[Straße und Hausnummer]<br>[PLZ Ort]</p>
-<p>E-Mail: [E-Mail-Adresse]</p>
-<p>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: [Name, Anschrift wie oben]</p>
-<h2>Datenquelle</h2><p>Verkehrsdaten: Die Autobahn GmbH des Bundes. Diese Website ist ein privates Angebot und steht in keiner Verbindung zur Autobahn GmbH.</p>"""
+<h2>Angaben gemäß § 5 DDG</h2>
+<p>Yacouba Pfälzner<br>Ehrenbergstraße 17<br>14195 Berlin</p>
+<h2>Kontakt</h2>
+<p>E-Mail: developeryp1@gmail.com</p>
+<h2>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV</h2>
+<p>Yacouba Pfälzner, Anschrift wie oben</p>
+<h2>Datenquelle</h2>
+<p>Die Verkehrsdaten stammen von der Autobahn GmbH des Bundes (verkehr.autobahn.de). Stauklar ist ein privates Angebot und steht in keiner Verbindung zur Autobahn GmbH. Alle Angaben ohne Gewähr.</p>
+<h2>Haftung für Links</h2>
+<p>Diese Website enthält Links zu externen Websites, auf deren Inhalte ich keinen Einfluss habe. Für diese Inhalte ist der jeweilige Anbieter verantwortlich.</p>"""
     ds = """<h1>Datenschutzerklärung</h1>
-<p class="todo">Vor Veröffentlichung prüfen und vervollständigen, besonders sobald Werbung oder Statistik eingebunden wird.</p>
-<h2>Verantwortlicher</h2><p>Siehe <a href="/impressum/">Impressum</a>.</p>
-<h2>Hosting und Server-Logfiles</h2><p>[Name des Hosters] verarbeitet beim Aufruf technisch notwendige Daten (IP-Adresse, Zeitpunkt, aufgerufene Seite) zur Auslieferung der Website, Art. 6 Abs. 1 lit. f DSGVO.</p>
-<h2>Abruf von Verkehrsmeldungen</h2><p>Auf den Seiten der einzelnen Autobahnen lädt Ihr Browser aktuelle Verkehrsmeldungen direkt von verkehr.autobahn.de (Die Autobahn GmbH des Bundes). Dabei wird Ihre IP-Adresse an diesen Server übermittelt.</p>
-<h2>Karten</h2><p>Für die Karten lädt Ihr Browser Kartenkacheln von OpenFreeMap (tiles.openfreemap.org, Kartendaten © OpenStreetMap-Mitwirkende). Dabei wird Ihre IP-Adresse an diesen Server übermittelt. Rechtsgrundlage ist unser berechtigtes Interesse an einer verständlichen Darstellung, Art. 6 Abs. 1 lit. f DSGVO.</p>
-<h2>Cookies</h2><p>Diese Website setzt keine Cookies und bindet keine externen Schriftarten oder Tracking-Dienste ein.</p>
-<h2>Ihre Rechte</h2><p>Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Widerspruch und Beschwerde bei einer Aufsichtsbehörde.</p>"""
+<h2>Verantwortlicher</h2>
+<p>Yacouba Pfälzner, Ehrenbergstraße 17, 14195 Berlin, E-Mail: developeryp1@gmail.com</p>
+<h2>Hosting</h2>
+<p>Diese Website wird über GitHub Pages bereitgestellt, einen Dienst der GitHub Inc., 88 Colin P. Kelly Jr. Street, San Francisco, CA 94107, USA. Beim Aufruf verarbeitet GitHub technisch notwendige Daten wie Ihre IP-Adresse, Zeitpunkt und aufgerufene Seite, um die Website auszuliefern und vor Missbrauch zu schützen. Dabei können Daten in die USA übermittelt werden. GitHub ist unter dem EU-US Data Privacy Framework zertifiziert. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einer sicheren und zuverlässigen Bereitstellung).</p>
+<h2>Abruf von Verkehrsmeldungen</h2>
+<p>Auf den Seiten der einzelnen Autobahnen lädt Ihr Browser aktuelle Staumeldungen direkt von verkehr.autobahn.de (Die Autobahn GmbH des Bundes). Dabei wird Ihre IP-Adresse an diesen Server übermittelt. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (aktuelle Verkehrsinformationen).</p>
+<h2>Karten</h2>
+<p>Für die Karten lädt Ihr Browser Kartenkacheln von OpenFreeMap (tiles.openfreemap.org, Kartendaten © OpenStreetMap-Mitwirkende). Dabei wird Ihre IP-Adresse an diesen Server übermittelt. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (verständliche Darstellung der Verkehrslage). Die Kartensoftware und die Schriftarten liegen auf unserem eigenen Webspace, dafür werden keine Daten an Dritte übertragen.</p>
+<h2>Standort („In meiner Nähe“)</h2>
+<p>Wenn Sie „In meiner Nähe“ wählen, fragt Ihr Browser um Erlaubnis, Ihren Standort zu verwenden. Der Standort wird ausschließlich in Ihrem Browser verarbeitet, um Meldungen in Ihrer Umgebung anzuzeigen. Er wird weder an uns übertragen noch gespeichert. Sie können die Erlaubnis jederzeit in Ihren Browser-Einstellungen widerrufen. Rechtsgrundlage ist Ihre Einwilligung, Art. 6 Abs. 1 lit. a DSGVO.</p>
+<h2>Cookies und Tracking</h2>
+<p>Diese Website setzt keine Cookies und verwendet keine Analyse- oder Tracking-Dienste.</p>
+<h2>Ihre Rechte</h2>
+<p>Sie haben das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) und Widerspruch (Art. 21). Außerdem können Sie sich bei einer Datenschutz-Aufsichtsbehörde beschweren, zum Beispiel bei der Berliner Beauftragten für Datenschutz und Informationsfreiheit.</p>
+<p><small>Stand: Oktober 2026</small></p>"""
     for p, t, b in (("impressum", "Impressum", imp), ("datenschutz", "Datenschutz", ds)):
         (DIST / p).mkdir(parents=True, exist_ok=True)
         (DIST / p / "index.html").write_text(page(f"{t} – {SITE_NAME}", t, f"/{p}/", f'<main class="legal">{b}</main>', extra_head='<meta name="robots" content="noindex">'))
