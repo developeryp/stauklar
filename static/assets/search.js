@@ -152,11 +152,10 @@ ${dauer.length ? `<details class="more"><summary>${dauer.length} Dauerbaustellen
   fromUrl(true);
 
   if (locBtn) locBtn.addEventListener('click', async () => {
-    const label = locBtn.innerHTML;
-    locBtn.textContent = 'Suche Standort …';
+    AB.setLbl(locBtn, 'Suche Standort …');
     locBtn.disabled = true;
     // Sofort sichtbar machen, dass etwas passiert
-    status('📍 Dein Standort wird bestimmt … Falls dein Browser fragt, bitte „Erlauben“ wählen.', true);
+    status('Dein Standort wird bestimmt … Falls dein Browser fragt, bitte „Erlauben“ wählen.', true);
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     try {
       const pos = await AB.locate();
@@ -166,6 +165,6 @@ ${dauer.length ? `<details class="more"><summary>${dauer.length} Dauerbaustellen
       status(`${esc(err.message)}<br><small>Tipp: Gib stattdessen oben eine Stadt ein, z. B. „Köln“.</small>`);
     }
     locBtn.disabled = false;
-    locBtn.innerHTML = label;
+    AB.setLbl(locBtn, 'In meiner Nähe');
   });
 })();

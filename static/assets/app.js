@@ -122,8 +122,10 @@
   if (dauerBox) dauerBox.addEventListener('change', () => { state.dauer = dauerBox.checked; apply(true); });
   const find = $('#find');
   const locBtn = $('#locate');
-  const LOC_LABEL = '📍 In meiner Nähe';
-  function clearLoc() { if (locBtn) { locBtn.classList.remove('on'); locBtn.textContent = LOC_LABEL; } }
+  const LOC_LABEL = 'In meiner Nähe';
+  const setLbl = (btn, t) => { const l = btn.querySelector('.lbl'); if (l) l.textContent = t; else btn.textContent = t; };
+  AB.setLbl = setLbl;
+  function clearLoc() { if (locBtn) { locBtn.classList.remove('on'); setLbl(locBtn, LOC_LABEL); } }
 
   // Suche: Ein bekannter Ort (Stadt oder Anschlussstelle) filtert räumlich im Umkreis von 20 km,
   // sonst wird im Text gesucht. So findet „Kassel“ nicht jede Meldung „Richtung Kassel“.
@@ -180,14 +182,14 @@
     if (state.near && state.near.src === 'gps') { // zweiter Klick schaltet den Umkreis wieder aus
       state.near = null; clearLoc(); AB.unmark(); apply(true); return;
     }
-    locBtn.textContent = '📍 Suche Standort …';
+    setLbl(locBtn, 'Suche Standort …');
     try {
       const pos = await AB.locate();
       state.near = { ...pos, r: 30, src: 'gps' };
       state.q = '';
       if (find) find.value = '';
       locBtn.classList.add('on');
-      locBtn.textContent = '📍 30 km um dich ✕';
+      setLbl(locBtn, '30 km um dich ✕');
       AB.mark(pos.lat, pos.lon);
       apply(true);
     } catch (err) {

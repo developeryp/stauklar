@@ -540,14 +540,13 @@ def page(title, desc, path, body, jsonld=(), extra_head="", body_class=""):
 <meta property="og:locale" content="de_DE">
 <meta name="theme-color" content="#1650a8">
 <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-<link rel="preload" href="/fonts/barlow-condensed-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/style.css?v={VER}">
 {ld}{extra_head}
 </head>
 <body class="{body_class}">
 <header class="bar"><div class="bar-in">
 <a href="/" class="brand" aria-label="{e(SITE_NAME)} – Startseite"><span class="brand-mark" aria-hidden="true"></span>{wordmark()}</a>
-<span class="fresh"><span class="pulse" aria-hidden="true"></span>Stand {NOW:%H:%M} Uhr</span>
+<span class="fresh">Aktualisiert {NOW:%H:%M} Uhr</span>
 </div></header>
 {body}
 <footer class="foot"><div class="foot-in">
@@ -666,14 +665,13 @@ def road_page(road, d, near):
       <li class="k-dauer"><b>{n_dauer}</b>Dauerbaustellen</li>
     </ul>
   </div>
-  <div class="lanes-deco" aria-hidden="true"></div>
 </section>
 
 <div class="controls" id="controls"><div class="controls-in">
   {seg("w", [("heute", "Heute"), ("woche", "7 Tage"), ("alle", "Alles")], default_w)}
   {seg("d", dir_opts, "") if len(dir_opts) > 2 else ''}
   <label class="tog"><input type="checkbox" id="dauer"{"" if (n_short or n_full or warns) else " checked"}><span class="tog-ui" aria-hidden="true"></span>Dauerbaustellen</label>
-  <button type="button" class="locate" id="locate">📍 In meiner Nähe</button>
+  <button type="button" class="locate" id="locate"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M14.3 1.7 1.9 6.6c-.7.3-.6 1.3.1 1.5l5 1.4 1.4 5c.2.7 1.2.8 1.5.1l4.9-12.4c.3-.7-.4-1.4-1.1-1.1z" fill="currentColor"/></svg><span class="lbl">In meiner Nähe</span></button>
   <label class="find"><span class="sr">Ort oder Abschnitt suchen</span><input id="find" type="search" placeholder="Stadt oder Anschlussstelle, z. B. {e((places_of(items[0]['title']) or ['Kassel'])[0]) if items else 'Kassel'}" autocomplete="off"></label>
 </div></div>
 
@@ -755,7 +753,7 @@ def index_page(roads, data):
       <input id="q" type="search" placeholder="Autobahn oder Stadt, z. B. A7 oder Berlin" autocomplete="off" aria-controls="sugg" aria-expanded="false">
       <ul id="sugg" class="sugg" role="listbox" hidden></ul>
     </div>
-    <button type="button" class="locate big" id="locate"><span aria-hidden="true">📍</span> In meiner Nähe</button>
+    <button type="button" class="locate big" id="locate"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M14.3 1.7 1.9 6.6c-.7.3-.6 1.3.1 1.5l5 1.4 1.4 5c.2.7 1.2.8 1.5.1l4.9-12.4c.3-.7-.4-1.4-1.1-1.1z" fill="currentColor"/></svg><span class="lbl">In meiner Nähe</span></button>
     <p class="quick">Heute viel los: {''.join(f'<a class="shield" href="/{slug(r)}/">{e(r)}</a>' for r in top)}</p>
     </div>
     <aside class="now-box" aria-label="Lage in Deutschland">
@@ -763,7 +761,6 @@ def index_page(roads, data):
       <ul class="kpis stack"><li class="k-voll"><b>{n_full}</b>Vollsperrungen</li><li class="k-kurz"><b>{n_short}</b>kurzfristige Sperrungen &amp; Baustellen</li><li class="k-live"><b>{n_warn}</b>Staus &amp; Gefahren gerade</li></ul>
     </aside>
   </div>
-  <div class="lanes-deco" aria-hidden="true"></div>
 </section>
 
 <section class="block wide nah" id="nah" hidden aria-live="polite"></section>
@@ -830,6 +827,60 @@ def legal_pages():
         (DIST / p / "index.html").write_text(page(f"{t} – {SITE_NAME}", t, f"/{p}/", f'<main class="legal">{b}</main>', extra_head='<meta name="robots" content="noindex">'))
 
 
+# ---------- JSON-API für die App (api/v1/…) ----------
+
+def iso(d):
+    return d.replace(tzinfo=TZ).isoformat() if d else None
+
+
+def api_item(it, labels):
+    upcoming = [w for w in it["wins"] if w[1] > NOW][:12]
+    return dict(
+        id=it["id"], title=it["title"], dir=arrow(it["dir"]), d=it["d"], t=round(it["t"], 2),
+        sev=it["sev"], label=it.get("label") or SEV_LABEL[it["sev"]], active=bool(it["active"]),
+        heute=bool(it["w_heute"]), woche=bool(it["w_woche"]), when=human_when(it["show"]),
+        start=iso(it["show"][0]), end=iso(it["show"][1]), total=iso(it.get("total")),
+        windows=[[iso(s), iso(e)] for s, e in upcoming],
+        where=arrow(it.get("where", "")), info=it.get("info", ""), project=it.get("project", ""),
+        lanes=it.get("lanes") or [], laneText=lanes(it.get("lanes") or [])[1],
+        lat=round(it["lat"], 5), lon=round(it["lon"], 5), geom=it.get("geom") or [],
+    )
+
+
+def api_warn(w):
+    return dict(id=w["id"], title=w["title"], dir=arrow(w["dir"]), d=w["d"], t=round(w["t"], 2),
+                text=[arrow(x) for x in w["text"]], lat=round(w["lat"], 5), lon=round(w["lon"], 5), geom=w.get("geom") or [])
+
+
+def write_api(roads, data, punkte):
+    api = DIST / "api" / "v1"
+    (api / "road").mkdir(parents=True)
+    stand = iso(NOW)
+    overview = []
+    for r in roads:
+        d = data[r]
+        st, st_txt = status_of(d["items"], d["warns"])
+        today = [i for i in d["items"] if i["w_heute"]]
+        counts = dict(voll=sum(i["sev"] == "voll" for i in today), kurz=sum(i["sev"] in ("sperr", "kurz") for i in today),
+                      live=len(d["warns"]), dauer=sum(i["sev"] == "dauer" for i in today))
+        c = d["c"]
+        overview.append(dict(id=r, slug=slug(r), status=st, statusText=st_txt, lage=lage(r, d["items"], d["warns"]), **counts,
+                             lat=round(c[0], 4) if c else None, lon=round(c[1], 4) if c else None))
+        near = sorted((o for o in roads if o != r and data[o]["c"] and c), key=lambda o: dist_km(c, data[o]["c"]))[:8]
+        ends = (["Norden", "Süden"] if d["ax"]["ns"] else ["Westen", "Osten"]) if d["ax"] else []
+        (api / "road" / f"{slug(r)}.json").write_text(json.dumps(dict(
+            id=r, stand=stand, status=st, statusText=st_txt, lage=lage(r, d["items"], d["warns"]), **counts,
+            axis=d["ax"], labels=d["labels"], ends=ends, near=near,
+            items=[api_item(i, d["labels"]) for i in d["items"]], warns=[api_warn(w) for w in d["warns"]],
+            parking=d["parking"], charging=d["charging"],
+        ), ensure_ascii=False, separators=(",", ":")))
+    (api / "roads.json").write_text(json.dumps(dict(stand=stand, roads=overview), ensure_ascii=False, separators=(",", ":")))
+    (api / "points.json").write_text(json.dumps(dict(stand=stand, points=[
+        dict(road=p[0], id=p[1], lat=p[2], lon=p[3], sev=p[4], heute=bool(p[5]), title=p[6], when=p[7], label=p[8], active=bool(p[9]))
+        for p in punkte]), ensure_ascii=False, separators=(",", ":")))
+    (api / "cities.json").write_text(json.dumps([dict(name=n, lat=la, lon=lo) for n, (la, lo) in CITIES.items()], ensure_ascii=False, separators=(",", ":")))
+
+
 def main():
     roads = sorted(json.loads((CACHE / "roads.json").read_text()), key=num_key)
     if DIST.exists():
@@ -881,6 +932,7 @@ def main():
         today = [i for i in data[r]["items"] if i["w_heute"] and i["sev"] != "dauer"]
         germany["features"] += features(today, data[r]["warns"], road=r)["features"]
     (DIST / "heute.json").write_text(json.dumps(germany, ensure_ascii=False, separators=(",", ":")))
+    write_api(roads, data, punkte)
     search = {"roads": [[r, status_of(data[r]["items"], data[r]["warns"])[1]] for r in roads],
               "cities": [[n, la, lo] for n, (la, lo) in CITIES.items()],
               "places": sorted([[p, sorted(rs, key=num_key), round(sum(c[1] for c in pts) / len(pts), 4), round(sum(c[0] for c in pts) / len(pts), 4)]
