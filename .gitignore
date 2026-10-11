@@ -2,3 +2,5 @@ __pycache__/
 .DS_Store
 cache/
 dist/
+ios/build/
+ios/Stauklar.xcodeproj/

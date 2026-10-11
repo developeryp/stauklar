@@ -1,0 +1,44 @@
+name: Stauklar
+options:
+  bundleIdPrefix: de.stauklar
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+settings:
+  base:
+    DEVELOPMENT_TEAM: 6AY5V43PJ2
+    SWIFT_VERSION: "5.10"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_STRICT_CONCURRENCY: minimal
+targets:
+  Stauklar:
+    type: application
+    platform: iOS
+    sources:
+      - path: Stauklar
+        excludes: ["Info.plist"]
+    info:
+      path: Stauklar/Info.plist
+      properties:
+        CFBundleDisplayName: Stauklar
+        CFBundleName: Stauklar
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        NSLocationWhenInUseUsageDescription: "Stauklar zeigt dir Sperrungen und Baustellen in deiner Nähe. Dein Standort bleibt auf dem Gerät."
+        ITSAppUsesNonExemptEncryption: false
+        # Übergangsweise, bis stauklar.de ein HTTPS-Zertifikat hat
+        NSAppTransportSecurity:
+          NSExceptionDomains:
+            stauklar.de:
+              NSExceptionAllowsInsecureHTTPLoads: true
+              NSIncludesSubdomains: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: de.stauklar.app
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
