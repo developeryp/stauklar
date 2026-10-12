@@ -21,9 +21,11 @@ struct RoadView: View {
     @State private var fullMap = false
     @State private var scrollTarget: String?
 
-    enum When: String, CaseIterable, Identifiable {
-        case heute = "Heute", woche = "Ab morgen", geplant = "Später", alle = "Alles"
+    enum When: String, Identifiable {
+        case heute = "Heute", morgen = "Morgen", woche = "7 Tage", alle = "Alles"
         var id: String { rawValue }
+        /// Im Umschalter sichtbar; „Alles“ nur intern, z. B. wenn ein Link auf eine spätere Meldung zeigt
+        static let shown: [When] = [.heute, .morgen, .woche]
     }
 
     var body: some View {
@@ -82,12 +84,12 @@ struct RoadView: View {
         return d.items.filter { ids.contains($0.id) }
     }
 
-    /// Heute = gilt heute (bis Mitternacht), Ab morgen = gilt in den nächsten 7 Tagen ab morgen, Später = erst danach
+    /// Heute = gilt heute (bis Mitternacht), Morgen = gilt am morgigen Tag, 7 Tage = gilt zwischen jetzt und in 7 Tagen
     private static func inWindow(_ g: Group, _ w: When) -> Bool {
         switch w {
         case .heute: return g.heute
+        case .morgen: return g.morgen ?? false
         case .woche: return g.woche
-        case .geplant: return !g.heute && !g.woche
         case .alle: return true
         }
     }
@@ -98,7 +100,7 @@ struct RoadView: View {
     }
 
     private func visibleWarns(_ d: RoadDetail) -> [Warn] {
-        if when == .geplant || !sevOn.contains(.live) { return [] }
+        if when == .morgen || !sevOn.contains(.live) { return [] }
         let list = d.warns.filter { dir.isEmpty || $0.d.isEmpty || $0.d == dir }.sorted { $0.t < $1.t }
         return dir == "minus" ? list.reversed() : list
     }
@@ -107,7 +109,7 @@ struct RoadView: View {
         d.groups.filter { g in
             let m = Self.inWindow(g, w)
             return m && (dir.isEmpty || g.d.isEmpty || g.d.contains(dir)) && sevOn.contains(g.severity)
-        }.count + (w == .geplant || !sevOn.contains(.live) ? 0 : d.warns.count)
+        }.count + (w == .morgen || !sevOn.contains(.live) ? 0 : d.warns.count)
     }
 
     // MARK: - Inhalt
@@ -115,7 +117,7 @@ struct RoadView: View {
     /// Meldungen, die die Filter-Knöpfe gerade verstecken (im aktuellen Zeitraum/Richtung)
     private func hiddenDauer(_ d: RoadDetail) -> Int {
         let g = d.groups.filter { g in !sevOn.contains(g.severity) && Self.inWindow(g, when) && (dir.isEmpty || g.d.isEmpty || g.d.contains(dir)) }.count
-        let w = sevOn.contains(.live) || when == .geplant ? 0 : d.warns.filter { dir.isEmpty || $0.d.isEmpty || $0.d == dir }.count
+        let w = sevOn.contains(.live) || when == .morgen ? 0 : d.warns.filter { dir.isEmpty || $0.d.isEmpty || $0.d == dir }.count
         return g + w
     }
 
@@ -252,7 +254,7 @@ struct RoadView: View {
     private func filters(_ d: RoadDetail) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Picker("Zeitraum", selection: $when) {
-                ForEach(When.allCases) { w in Text(w == .geplant ? w.rawValue : "\(w.rawValue) (\(count(w, d)))").tag(w) }
+                ForEach(When.shown) { w in Text("\(w.rawValue) (\(count(w, d)))").tag(w) }
             }
             .pickerStyle(.segmented)
             HStack(spacing: 10) {

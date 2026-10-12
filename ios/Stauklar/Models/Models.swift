@@ -58,6 +58,7 @@ struct Group: Codable, Identifiable, Hashable {
     let active: Bool
     let heute: Bool
     let woche: Bool
+    let morgen: Bool?
     let when: String
     let start: String?
     let end: String?

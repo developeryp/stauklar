@@ -23,7 +23,7 @@ BASE = (os.environ.get("BASE_PATH") or "").rstrip("/")
 APP_STORE_URL = os.environ.get("APP_STORE_URL") or ""
 APP_ID = os.environ.get("APP_ID") or ""
 NOW = dt.datetime.now(TZ).replace(tzinfo=None, second=0, microsecond=0)
-# „Heute“ = bis Mitternacht; alles ab morgen gehört zu „Ab morgen“ (die nächsten 7 Tage)
+# Zeitfilter: Heute (bis Mitternacht), Morgen (der ganze morgige Tag), 7 Tage (heute bis in 7 Tagen)
 TONIGHT_END = (NOW + dt.timedelta(days=1)).replace(hour=0, minute=0)
 TOMORROW = TONIGHT_END
 WEEK_END = NOW + dt.timedelta(days=7)
@@ -426,9 +426,10 @@ def enrich(it):
     """Zeit-Filter und Schweregrad für eine Meldung."""
     wins = it["wins"]
     it["w_heute"] = any(s < TONIGHT_END and en > NOW for s, en in wins)
-    # Ab morgen: beginnt morgen oder später (innerhalb 7 Tagen) oder läuft morgen noch tagsüber.
-    # Eine Nachtbaustelle „heute 22 bis morgen 5 Uhr“ gehört nur zu „Heute“.
-    it["w_woche"] = any((TOMORROW <= s < WEEK_END) or (s < TOMORROW and en > TOMORROW + dt.timedelta(hours=12)) for s, en in wins)
+    # Morgen: gilt irgendwann am morgigen Tag. Eine Nachtbaustelle „heute 22 bis morgen 5 Uhr“ zählt nur zu Heute.
+    tom_end = TOMORROW + dt.timedelta(days=1)
+    it["w_morgen"] = any(s < tom_end and en > TOMORROW and not (s < TOMORROW and en <= TOMORROW + dt.timedelta(hours=6)) for s, en in wins)
+    it["w_woche"] = any(s < WEEK_END and en > NOW for s, en in wins)
     long_win = any(en - s > SHORT for s, en in wins if en > NOW and s < WEEK_END)
     # Das API-Feld isBlocked ist immer „false“. Vollsperrung daher aus Spurdaten oder Text ableiten.
     sym = it.get("lanes") or []
@@ -647,7 +648,7 @@ def group_items(items):
         groups.append(dict(
             id=gid, items=[m["id"] for m in mem], title=section or nice_title(mem[0].get("project"), mem), section=section, what=what,
             sev=sev, label=label, active=any(m["active"] for m in mem),
-            heute=any(m["w_heute"] for m in mem), woche=any(m["w_woche"] for m in mem),
+            heute=any(m["w_heute"] for m in mem), morgen=any(m["w_morgen"] for m in mem), woche=any(m["w_woche"] for m in mem),
             show=mem[0]["show"], when=human_when(mem[0]["show"]), upcoming=upcoming, total=total,
             terms=terms_text([w for m in mem for w in m["wins"]], mem[0]["show"]),
             dirs=dirs, ramps=dedupe_ramps([ramp_text(r) for r in ramps]),
@@ -673,7 +674,7 @@ def group_items(items):
 
 def stop(g, labels, href=None):
     when = g["when"]
-    tokens = " ".join(k for k, on in (("heute", g["heute"]), ("woche", g["woche"]), ("geplant", not g["heute"] and not g["woche"]), ("alle", True)) if on)
+    tokens = " ".join(k for k, on in (("heute", g["heute"]), ("morgen", g["morgen"]), ("woche", g["woche"]), ("alle", True)) if on)
     q = " ".join([g["title"], g["section"], g["project"]] + g["raw_titles"] + [d["raw"] for d in g["dirs"]]).lower()
     now_badge = '<span class="badge now">jetzt</span>' if g["active"] else ""
     if g["active"]:
@@ -951,7 +952,7 @@ def road_page(road, d, near):
 </section>
 
 <div class="controls" id="controls"><div class="controls-in">
-  {seg("w", [("heute", "Heute"), ("woche", "Ab morgen"), ("geplant", "Später"), ("alle", "Alles")], default_w)}
+  {seg("w", [("heute", "Heute"), ("morgen", "Morgen"), ("woche", "7 Tage")], default_w)}
   {seg("d", dir_opts, "") if len(dir_opts) > 2 else ''}
   <div class="legend chips" id="sevf" role="group" aria-label="Nach Art filtern">{''.join(f'<button type="button" class="chip" aria-pressed="true" data-sev="{k}"><i class="sw {k}"></i>{t}</button>' for k, t in SEV_CHIPS)}</div>
   <button type="button" class="locate" id="locate"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M14.3 1.7 1.9 6.6c-.7.3-.6 1.3.1 1.5l5 1.4 1.4 5c.2.7 1.2.8 1.5.1l4.9-12.4c.3-.7-.4-1.4-1.1-1.1z" fill="currentColor"/></svg><span class="lbl">In meiner Nähe</span></button>
@@ -1182,7 +1183,7 @@ def api_item(it, labels):
 
 def api_group(g):
     return dict(id=g["id"], items=g["items"], title=g["title"], section=g["section"], what=g["what"], sev=g["sev"], label=g["label"],
-                active=g["active"], heute=g["heute"], woche=g["woche"], when=human_when(g["show"]),
+                active=g["active"], heute=g["heute"], morgen=g["morgen"], woche=g["woche"], when=human_when(g["show"]),
                 start=iso(g["show"][0]), end=iso(g["show"][1]), total=iso(g["total"]), upcoming=g["upcoming"], terms=g["terms"], context=g.get("context", ""),
                 dirs=[dict(d=x["d"], raw=x["raw"], lanes=x["lanes"], laneText=x["laneText"], where=x["where"], info=x["info"]) for x in g["dirs"]],
                 ramps=g["ramps"], project=g["project"], t=round(g["t"], 2), d=g["d"], lat=round(g["lat"], 5), lon=round(g["lon"], 5))
