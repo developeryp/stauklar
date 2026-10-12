@@ -4,3 +4,5 @@ cache/
 dist/
 ios/build/
 ios/Stauklar.xcodeproj/
+ios/build-device/
+ios/build-shots/
