@@ -10,6 +10,8 @@ struct HomeView: View {
     @State private var camera: MapCameraPosition = .region(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 51.2, longitude: 10.4), span: MKCoordinateSpan(latitudeDelta: 8.2, longitudeDelta: 8.2)))
     /// Meter pro Bildschirmpunkt beim aktuellen Zoom, damit die Punkte immer gleich groß bleiben
     @State private var metersPerPoint = 8.2 * 110_570 / 250
+    /// Sichtbarer Kartenausschnitt; gezeichnet wird nur, was darin liegt (sonst ruckelt es bei über 2000 Punkten)
+    @State private var region = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 51.2, longitude: 10.4), span: MKCoordinateSpan(latitudeDelta: 8.2, longitudeDelta: 8.2))
     private let mapHeight: CGFloat = 250
 
     private let columns = [GridItem(.adaptive(minimum: 76), spacing: 8)]
@@ -108,8 +110,8 @@ struct HomeView: View {
                 .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
                 // Nur am Ende einer Geste anpassen, sonst werden alle Punkte bei jedem Bild neu gezeichnet (ruckelt)
                 .onMapCameraChange(frequency: .onEnd) { ctx in
-                    let m = ctx.region.span.latitudeDelta * 110_570 / Double(mapHeight)
-                    if abs(m - metersPerPoint) / metersPerPoint > 0.15 { metersPerPoint = m }
+                    metersPerPoint = ctx.region.span.latitudeDelta * 110_570 / Double(mapHeight)
+                    region = ctx.region
                 }
                 .onTapGesture { pt in
                     // Nächster Punkt im Umkreis von 18 Bildschirmpunkten → genau diese Meldung öffnen, sonst Umkreis dort
@@ -140,13 +142,17 @@ struct HomeView: View {
     private func thinned(_ pts: [Point]) -> [Point] {
         let cell = metersPerPoint * 6 / 111_000          // Rastergröße in Grad, ca. 6 Bildschirmpunkte
         guard cell > 0 else { return pts }
+        // nur der sichtbare Ausschnitt plus etwas Rand
+        let la = region.span.latitudeDelta * 0.6, lo = region.span.longitudeDelta * 0.6
+        let c = region.center
         var best: [Int64: Point] = [:]
-        for p in pts {
+        for p in pts where abs(p.lat - c.latitude) <= la && abs(p.lon - c.longitude) <= lo {
             let k = Int64((p.lat / cell).rounded(.down)) << 32 | Int64((p.lon / cell).rounded(.down)) & 0xffffffff
             if let o = best[k], o.severity.rank <= p.severity.rank { continue }
             best[k] = p
         }
-        return best.values.sorted { $0.severity.rank > $1.severity.rank }   // Wichtiges zuletzt, also obenauf
+        // höchstens 500 Kreise; die wichtigsten bleiben
+        return Array(best.values.sorted { $0.severity.rank < $1.severity.rank }.prefix(500)).reversed()   // Wichtiges zuletzt, also obenauf
     }
 
     /// Welche Arten auf der Deutschlandkarte sichtbar sind (gespeichert)
