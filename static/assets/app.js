@@ -292,9 +292,15 @@
   function linesOf(id) { return data.features.filter(f => f.properties.g === id && !f.properties.pt); }
 
   function focusOnMap(id, scroll) {
+    if (scroll) {
+      // Zur Karte springen, unter der klebenden Filterleiste. Bei weiten Wegen sofort, weich scrollen bricht dort ab.
+      const bar = $('#controls');
+      const y = el.getBoundingClientRect().top + scrollY - (bar ? bar.offsetHeight : 0) - 12;
+      const far = Math.abs(y - scrollY) > 2 * innerHeight;
+      window.scrollTo({ top: y, behavior: reduce || far ? 'auto' : 'smooth' });
+    }
     const fs = linesOf(id);
     if (!fs.length || !map) return;
-    if (scroll) el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
     fitTo(fs, 15);
     highlight(id);
   }
