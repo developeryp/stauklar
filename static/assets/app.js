@@ -350,7 +350,16 @@
     map.addControl(geo, 'top-right');
     if (navigator.permissions && navigator.permissions.query) {
       navigator.permissions.query({ name: 'geolocation' }).then(st => {
-        if (st.state === 'granted') map.once('load', () => { const c = map.getCenter(), z = map.getZoom(); geo.trigger(); map.once('moveend', () => map.jumpTo({ center: c, zoom: z })); });
+        // Nur den blauen Standortpunkt zeigen, die Karte bleibt, wo sie ist (Übersicht oder verlinkte Meldung)
+        if (st.state === 'granted') map.once('load', () => {
+          geo.once('geolocate', () => {
+            const c = map.getCenter(), z = map.getZoom();
+            map.once('moveend', () => {
+              if (linkTarget) focusOnMap(linkTarget, false); else map.jumpTo({ center: c, zoom: z });
+            });
+          });
+          geo.trigger();
+        });
       }).catch(() => {});
     }
     map.touchZoomRotate.disableRotation();
