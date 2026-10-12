@@ -1,7 +1,7 @@
 // Stauklar Push-Server (Supabase Edge Function).
 // Läuft alle 15 Minuten per pg_cron. Zwei Aufgaben:
-//  1. Sofortmeldung: neue Vollsperrung heute auf einer Lieblingsstrecke → Push.
-//  2. Morgenlage um 06:30 (Europe/Berlin): ein Push pro Gerät mit allen Sperrungen heute auf den eigenen Strecken.
+//  1. Sofortmeldung: neue Vollsperrung heute auf einer Lieblingsstrecke → Push innerhalb von 15 Minuten.
+//  2. Morgenlage zur Wunschzeit des Geräts (Standard 06:30 Ortszeit): ein Push mit allen Sperrungen heute auf den eigenen Strecken.
 // Geheimnisse (APNs-Schlüssel, Cron-Secret) liegen im Supabase Vault, abrufbar über public.get_secret().
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -24,7 +24,9 @@ const sb = (path: string, init: RequestInit = {}) =>
 async function secret(name: string): Promise<string> {
   const r = await sb("rpc/get_secret", { method: "POST", body: JSON.stringify({ name }) });
   if (!r.ok) throw new Error(`Secret ${name} fehlt (${r.status})`);
-  return (await r.json()) as string;
+  const v = await r.json();
+  if (!v) throw new Error(`Secret ${name} ist leer`);
+  return v as string;
 }
 
 // ---------- APNs ----------
@@ -67,7 +69,7 @@ function road(id: string): Promise<Road | null> {
 const closures = (r: Road) => r.items.filter((i) => i.heute && (i.sev === "voll" || i.sev === "sperr"));
 const key = (r: string, i: Item) => `${r}/${i.id}/${i.start ?? ""}`;
 
-function berlinNow(tz: string) {
+function localNow(tz: string) {
   const parts = new Intl.DateTimeFormat("de-DE", { timeZone: tz || "Europe/Berlin", hour: "2-digit", minute: "2-digit", year: "numeric", month: "2-digit", day: "2-digit", hour12: false })
     .formatToParts(new Date()).reduce((o, p) => ({ ...o, [p.type]: p.value }), {} as Record<string, string>);
   return { hour: +parts.hour % 24, minute: +parts.minute, date: `${parts.year}-${parts.month}-${parts.day}` };
@@ -79,27 +81,34 @@ Deno.serve(async (req) => {
   const cronSecret = await secret("cron_secret");
   if (req.headers.get("x-cron-secret") !== cronSecret) return new Response("Nicht erlaubt", { status: 401 });
 
-  const [pem, keyId] = await Promise.all([secret("apns_key"), secret("apns_key_id")]);
-  const jwt = await apnsToken(pem, keyId);
-
   const devices = (await (await sb("devices?select=token,env,roads,tz,digest_time")).json()) as Device[];
+  const stats = { devices: devices.length, pushed: 0, removed: 0, errors: 0, skipped: 0 };
+  if (!devices.some((d) => d.roads?.length)) return Response.json(stats);
+
+  let jwt: string;
+  try {
+    const [pem, keyId] = await Promise.all([secret("apns_key"), secret("apns_key_id")]);
+    jwt = await apnsToken(pem, keyId);
+  } catch (e) {
+    return Response.json({ ...stats, error: `APNs nicht konfiguriert: ${(e as Error).message}` }, { status: 500 });
+  }
   const sentRows = (await (await sb("sent?select=token,key")).json()) as { token: string; key: string }[];
   const sent = new Set(sentRows.map((s) => `${s.token}|${s.key}`));
-  const stats = { devices: devices.length, pushed: 0, removed: 0, errors: 0 };
 
   for (const d of devices) {
-    if (!d.roads?.length) continue;
-    const now = berlinNow(d.tz);
+    if (!d.roads?.length) { stats.skipped++; continue; }
+    const now = localNow(d.tz);
     const digestKey = `digest/${now.date}`;
     // Wunschzeit des Geräts (z. B. „06:30“); der Lauf alle 15 Minuten trifft das Fenster [Zeit, Zeit+15)
     const [dh, dm] = (d.digest_time || "06:30").split(":").map(Number);
-    const minutesNow = now.hour * 60 + now.minute, minutesWanted = dh * 60 + dm;
+    const minutesNow = now.hour * 60 + now.minute, minutesWanted = (dh || 6) * 60 + (dm || 0);
     const digestTime = force === "digest" || (minutesNow >= minutesWanted && minutesNow < minutesWanted + 15);
     const newSent: string[] = [];
     const messages: { title: string; body: string; road: string }[] = [];
-
-    // 1. Sofortmeldungen: neue Vollsperrungen
     const digestLines: string[] = [];
+    // Neues Gerät: bestehende Vollsperrungen nur merken, nicht melden (sonst kommt beim Einschalten ein Schwall alter Meldungen)
+    const isNew = !sentRows.some((s) => s.token === d.token);
+
     for (const rid of d.roads) {
       const r = await road(rid);
       if (!r) continue;
@@ -107,7 +116,7 @@ Deno.serve(async (req) => {
       for (const it of cl) {
         const k = key(rid, it);
         if (it.sev === "voll" && !sent.has(`${d.token}|${k}`)) {
-          messages.push({ title: `${rid} voll gesperrt`, body: `${it.title}, ${it.when}`, road: rid });
+          if (!isNew) messages.push({ title: `${rid} voll gesperrt`, body: `${it.title}, ${it.when}`, road: rid });
           newSent.push(k);
         }
       }
@@ -117,7 +126,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 2. Morgenlage
     if (digestTime && digestLines.length && !sent.has(`${d.token}|${digestKey}`)) {
       messages.push({ title: "Deine Strecken heute", body: digestLines.join("\n"), road: d.roads[0] });
       newSent.push(digestKey);
@@ -140,7 +148,6 @@ Deno.serve(async (req) => {
         body: JSON.stringify(newSent.map((k) => ({ token: d.token, key: k }))) });
     }
   }
-  // Alte Einträge aufräumen (nach 14 Tagen)
   await sb(`sent?sent_at=lt.${new Date(Date.now() - 14 * 864e5).toISOString()}`, { method: "DELETE" });
-  return new Response(JSON.stringify(stats), { headers: { "Content-Type": "application/json" } });
+  return Response.json(stats);
 });
