@@ -91,9 +91,9 @@
 
   // ---------- Filter ----------
   // Dauerbaustellen ändern sich kaum: standardmäßig ausgeblendet, damit das Neue von heute oben steht
-  const matches = (li, w, d, q) =>
+  const matches = (li, w, d, q, ignoreDauer) =>
     li.dataset.w.split(' ').includes(w) && (!d || !li.dataset.d || li.dataset.d.split(' ').includes(d)) && (!q || norm(li.dataset.q).includes(q))
-    && (state.dauer || !li.classList.contains('sev-dauer'))
+    && (ignoreDauer || state.dauer || !li.classList.contains('sev-dauer'))
     && (!state.near || nearLi(li, state.near.r));
   const llOf = li => { const [lat, lon] = (li.dataset.ll || '0,0').split(',').map(Number); return { lat, lon }; };
   function nearLi(li, r) {
@@ -117,6 +117,14 @@
       n.textContent = stops.filter(li => matches(li, n.dataset.n, state.d, state.q)).length;
     });
     $('#route-n').textContent = ids.length;
+    // Sichtbar machen, was der Dauerbaustellen-Schalter gerade versteckt
+    const hiddenDauer = state.dauer ? 0 : stops.filter(li => li.classList.contains('sev-dauer') && matches(li, state.w, state.d, state.q, true)).length;
+    const note = $('#hidden-note');
+    if (note) {
+      note.hidden = hiddenDauer === 0;
+      note.innerHTML = `${hiddenDauer} Dauerbaustelle${hiddenDauer === 1 ? '' : 'n'} ausgeblendet · <b>Einblenden</b>`;
+    }
+    $('#route-n').textContent = ids.length + (hiddenDauer ? ` · ${hiddenDauer} ausgeblendet` : '');
     $('#empty').hidden = ids.length > 0;
     if (!ids.length) explainEmpty();
     visibleIds = ids;
@@ -141,6 +149,8 @@
   const setW = w => { state.w = w; $$('[data-seg="w"] button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === w))); };
   const dauerBox = $('#dauer');
   if (dauerBox) dauerBox.addEventListener('change', () => { state.dauer = dauerBox.checked; apply(true); });
+  const hiddenNote = $('#hidden-note');
+  if (hiddenNote && dauerBox) hiddenNote.addEventListener('click', () => { dauerBox.checked = true; state.dauer = true; apply(true); });
   const find = $('#find');
   const locBtn = $('#locate');
   const LOC_LABEL = 'In meiner Nähe';

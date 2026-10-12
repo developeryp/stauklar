@@ -870,6 +870,7 @@ def road_page(road, d, near):
 
 <div class="split" data-road="{e(road)}" data-ax="{e(json.dumps(d['ax'])) if d['ax'] else ''}" data-labels="{e(json.dumps(labels, ensure_ascii=False))}">
   <div class="mapcol"><div id="map" data-src="map.json" role="region" aria-label="Karte der {e(road)}"></div>
+    <button type="button" class="hidden-note" id="hidden-note" hidden>Dauerbaustellen ausgeblendet · <b>Einblenden</b></button>
     <div class="legend"><span><i class="sw voll"></i>Vollsperrung</span><span><i class="sw sperr"></i>Sperrung</span><span><i class="sw kurz"></i>kurzfristig</span><span><i class="sw dauer"></i>Dauerbaustelle</span><span><i class="sw live"></i>Stau/Gefahr</span></div>
   </div>
   <div class="listcol">

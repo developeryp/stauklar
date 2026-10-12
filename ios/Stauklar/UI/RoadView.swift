@@ -110,6 +110,12 @@ struct RoadView: View {
 
     // MARK: - Inhalt
 
+    /// Dauerbaustellen, die der Schalter gerade versteckt (im aktuellen Zeitraum/Richtung)
+    private func hiddenDauer(_ d: RoadDetail) -> Int {
+        guard !showDauer else { return 0 }
+        return d.groups.filter { g in g.severity == .dauer && Self.inWindow(g, when) && (dir.isEmpty || g.d.isEmpty || g.d.contains(dir)) }.count
+    }
+
     private func content(_ d: RoadDetail) -> some View {
         let groups = visible(d)
         let items = visibleItems(d)
@@ -125,6 +131,7 @@ struct RoadView: View {
             filters(d)
             VStack(alignment: .leading, spacing: 10) {
                 SectionTitle(text: "Entlang der Strecke", detail: "\(rows.count)")
+                if hiddenDauer(d) > 0 { hiddenNote(d) }
                 if let ends { RouteEnd(text: ends.0) }
                 if rows.isEmpty {
                     emptyHint(d)
@@ -196,6 +203,7 @@ struct RoadView: View {
                     .padding(10)
             }
             .overlay(alignment: .bottom) { callout(d) }
+            .overlay(alignment: .bottomLeading) { if selected == nil && hiddenDauer(d) > 0 { hiddenNote(d).padding(10) } }
             .overlay(alignment: .topTrailing) {
                 Button { fullMap = true } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
@@ -276,6 +284,22 @@ struct RoadView: View {
         .onChange(of: when) { _, _ in fitVisible(d) }
         .onChange(of: dir) { _, _ in fitVisible(d) }
         .onChange(of: showDauer) { _, _ in fitVisible(d) }
+    }
+
+    private func hiddenNote(_ d: RoadDetail) -> some View {
+        let n = hiddenDauer(d)
+        return Button { withAnimation { showDauer = true } } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "eye.slash").font(.caption)
+                Text("\(n) Dauerbaustelle\(n == 1 ? "" : "n") ausgeblendet")
+                Text("Einblenden").foregroundStyle(Theme.accent).fontWeight(.semibold)
+            }
+            .font(.footnote.weight(.medium))
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(.regularMaterial, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
     }
 
     private func emptyHint(_ d: RoadDetail) -> some View {
