@@ -54,9 +54,9 @@ struct DriveView: View {
 
     /// Karte, die der Position folgt und in Fahrtrichtung zeigt; Meldungen voraus farbig
     private var driveMap: some View {
-        Map(position: $camera, interactionModes: [.zoom]) {
+        Map(position: $camera, interactionModes: [.pan, .zoom, .rotate]) {
             UserAnnotation()
-            // Solange keine Autobahn erkannt ist: Meldungen der Umgebung als Punkte, damit die Karte nie leer ist
+            // Meldungen der anderen Autobahnen in der Umgebung als Punkte; die eigene Strecke kommt als Linien
             ForEach(model.nearPoints, id: \.key) { p in
                 Annotation("", coordinate: p.coordinate) {
                     Circle().fill(Theme.color(p.severity)).frame(width: 10, height: 10)
@@ -110,6 +110,9 @@ struct DriveView: View {
             }
         }
         .onChange(of: closeView) { _, _ in following = true; model.cameraTick += 1 }
+        // Verschieben oder Drehen von Hand: Karte folgt nicht mehr, bis der Pfeil-Button gedrückt wird
+        .simultaneousGesture(DragGesture(minimumDistance: 8).onChanged { _ in following = false })
+        .simultaneousGesture(RotationGesture().onChanged { _ in following = false })
         .overlay(alignment: .top) {
             if model.roadID != nil { Picker("Ansicht", selection: $closeView) {
                 Text("Übersicht").tag(false)
@@ -142,7 +145,7 @@ struct DriveView: View {
         }
         .onMapCameraChange(frequency: .onEnd) { _ in }
         .overlay(alignment: .topTrailing) {
-            Button { following.toggle() } label: {
+            Button { following.toggle(); if following { model.cameraTick += 1 } } label: {
                 Image(systemName: following ? "location.fill" : "location").font(.body.weight(.semibold)).padding(9).background(.regularMaterial, in: Circle())
             }
             .padding(8)
@@ -298,6 +301,7 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         // Autobahn: nächster bekannter Meldungspunkt in höchstens 3 km; alle 20 s neu prüfen
         if roadID == nil || Date().timeIntervalSince(lastDetect) > 20 {
             lastDetect = Date()
+            nearPoints = store.points.filter { $0.road != roadID && kilometers(here, $0.coordinate) < 40 }
             var best: (String, Double)?
             for p in store.points {
                 let d = kilometers(here, p.coordinate)
@@ -306,18 +310,17 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             guard let (road, _) = best else {
                 if roadID == nil {
                     message = "Keine Autobahn in der Nähe. Der Fahrmodus startet, sobald du auf einer Autobahn bist."; icon = "road.lanes"
-                    nearPoints = store.points.filter { kilometers(here, $0.coordinate) < 25 }
                 }
                 return
             }
             if road != roadID {
                 roadID = road
+                nearPoints = nearPoints.filter { $0.road != road }
                 detail = nil
                 load(road)
             }
         }
         guard let d = detail, let axis = d.axis else { return }
-        nearPoints = []
         let todayGroups = Set(d.groups.filter(\.heute).flatMap(\.items))
         mapItems = d.items.filter { todayGroups.contains($0.id) }
         mapWarns = d.warns
