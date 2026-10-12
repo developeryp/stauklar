@@ -73,28 +73,17 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
         #else
         let env = "production"
         #endif
-        let body: [String: Any] = ["token": token, "platform": "ios", "env": env, "roads": roads,
-                                   "tz": TimeZone.current.identifier, "digest_time": digestTime,
-                                   "updated_at": ISO8601DateFormatter().string(from: Date())]
-        let base = Config.supabaseURL.appendingPathComponent("rest/v1/devices")
-        func request(_ method: String, _ url: URL) -> URLRequest {
-            var req = URLRequest(url: url)
-            req.httpMethod = method
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.setValue(Config.supabaseKey, forHTTPHeaderField: "apikey")
-            req.setValue("Bearer \(Config.supabaseKey)", forHTTPHeaderField: "Authorization")
-            req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
-            req.httpBody = try? JSONSerialization.data(withJSONObject: body)
-            return req
-        }
+        // Serverfunktion register_device: legt an oder aktualisiert, ohne dass die App die Tabelle lesen darf
+        let body: [String: Any] = ["p_token": token, "p_platform": "ios", "p_env": env, "p_roads": roads,
+                                   "p_tz": TimeZone.current.identifier, "p_digest_time": digestTime]
+        var req = URLRequest(url: Config.supabaseURL.appendingPathComponent("rest/v1/rpc/register_device"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(Config.supabaseKey, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(Config.supabaseKey)", forHTTPHeaderField: "Authorization")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         do {
-            // Erst anlegen; gibt es das Gerät schon (409), die Zeile ändern
-            var (_, resp) = try await URLSession.shared.data(for: request("POST", base))
-            if (resp as? HTTPURLResponse)?.statusCode == 409 {
-                var c = URLComponents(url: base, resolvingAgainstBaseURL: false)!
-                c.queryItems = [URLQueryItem(name: "token", value: "eq.\(token)")]
-                (_, resp) = try await URLSession.shared.data(for: request("PATCH", c.url!))
-            }
+            let (_, resp) = try await URLSession.shared.data(for: req)
             if let http = resp as? HTTPURLResponse, http.statusCode >= 300 {
                 lastError = "Server antwortete mit \(http.statusCode)"
             } else {

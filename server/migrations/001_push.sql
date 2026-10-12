@@ -20,9 +20,16 @@ create table if not exists public.sent (
 alter table public.devices enable row level security;
 alter table public.sent enable row level security;
 
--- Die App darf ihr Gerät anlegen und aktualisieren, aber nichts lesen
-create policy "app registriert gerät" on public.devices for insert to anon with check (true);
-create policy "app aktualisiert gerät" on public.devices for update to anon using (true) with check (true);
+-- Die App registriert sich nur über die Funktion register_device (kein direkter Tabellenzugriff, kein Lesen)
+create or replace function public.register_device(p_token text, p_platform text, p_env text, p_roads text[], p_tz text, p_digest_time text)
+returns void language sql security definer set search_path = '' as $$
+  insert into public.devices (token, platform, env, roads, tz, digest_time, updated_at)
+  values (p_token, coalesce(p_platform, 'ios'), coalesce(p_env, 'production'), coalesce(p_roads, '{}'), coalesce(p_tz, 'Europe/Berlin'), coalesce(p_digest_time, '06:30'), now())
+  on conflict (token) do update
+    set platform = excluded.platform, env = excluded.env, roads = excluded.roads, tz = excluded.tz, digest_time = excluded.digest_time, updated_at = now();
+$$;
+revoke all on function public.register_device(text, text, text, text[], text, text) from public;
+grant execute on function public.register_device(text, text, text, text[], text, text) to anon, authenticated, service_role;
 
 -- Geheimnisse aus dem Vault, nur für den Server (Service-Role)
 create or replace function public.get_secret(name text)
