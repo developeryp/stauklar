@@ -106,6 +106,19 @@ struct HomeView: View {
         }
     }
 
+    /// „HH:mm“ ↔ Date für den Zeitwähler
+    private var digestBinding: Binding<Date> {
+        Binding(
+            get: {
+                let p = push.digestTime.split(separator: ":").compactMap { Int($0) }
+                return Calendar.current.date(from: DateComponents(hour: p.first ?? 6, minute: p.count > 1 ? p[1] : 30)) ?? Date()
+            },
+            set: { d in
+                let c = Calendar.current.dateComponents([.hour, .minute], from: d)
+                push.digestTime = String(format: "%02d:%02d", c.hour ?? 6, c.minute ?? 30)
+            })
+    }
+
     private func legend(_ s: Severity, _ t: String) -> some View {
         HStack(spacing: 5) { Circle().fill(Theme.color(s)).frame(width: 8, height: 8); Text(t) }
     }
@@ -135,12 +148,21 @@ struct HomeView: View {
     @ViewBuilder
     private var pushCard: some View {
         if push.authorized {
-            HStack(spacing: 10) {
-                Image(systemName: "bell.badge.fill").foregroundStyle(Theme.accent)
-                Text("Du bekommst morgens um 6:30 Uhr die Lage auf deinen Strecken und sofort Bescheid bei neuen Vollsperrungen.")
-                    .font(.footnote).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    Image(systemName: "bell.badge.fill").foregroundStyle(Theme.accent)
+                    Text("Sofort Bescheid bei neuen Vollsperrungen, dazu jeden Morgen die Lage auf deinen Strecken.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                HStack {
+                    Text("Morgenlage um").font(.subheadline.weight(.medium))
+                    Spacer()
+                    DatePicker("Uhrzeit der Morgenlage", selection: digestBinding, displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                }
             }
-            .padding(.horizontal, 4)
+            .card()
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Morgens Bescheid bekommen?").font(.headline)

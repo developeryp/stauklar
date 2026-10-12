@@ -10,7 +10,7 @@ const SITE = "https://stauklar.de/api/v1";
 const TOPIC = "de.stauklar.app";
 const TEAM_ID = "6AY5V43PJ2";
 
-type Device = { token: string; env: string; roads: string[]; tz: string };
+type Device = { token: string; env: string; roads: string[]; tz: string; digest_time?: string };
 type Item = { id: string; title: string; sev: string; label: string; heute: boolean; active: boolean; when: string; start: string | null };
 type Road = { id: string; items: Item[] };
 
@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
   const [pem, keyId] = await Promise.all([secret("apns_key"), secret("apns_key_id")]);
   const jwt = await apnsToken(pem, keyId);
 
-  const devices = (await (await sb("devices?select=token,env,roads,tz")).json()) as Device[];
+  const devices = (await (await sb("devices?select=token,env,roads,tz,digest_time")).json()) as Device[];
   const sentRows = (await (await sb("sent?select=token,key")).json()) as { token: string; key: string }[];
   const sent = new Set(sentRows.map((s) => `${s.token}|${s.key}`));
   const stats = { devices: devices.length, pushed: 0, removed: 0, errors: 0 };
@@ -91,7 +91,10 @@ Deno.serve(async (req) => {
     if (!d.roads?.length) continue;
     const now = berlinNow(d.tz);
     const digestKey = `digest/${now.date}`;
-    const digestTime = force === "digest" || (now.hour === 6 && now.minute >= 30 && now.minute < 45);
+    // Wunschzeit des Geräts (z. B. „06:30“); der Lauf alle 15 Minuten trifft das Fenster [Zeit, Zeit+15)
+    const [dh, dm] = (d.digest_time || "06:30").split(":").map(Number);
+    const minutesNow = now.hour * 60 + now.minute, minutesWanted = dh * 60 + dm;
+    const digestTime = force === "digest" || (minutesNow >= minutesWanted && minutesNow < minutesWanted + 15);
     const newSent: string[] = [];
     const messages: { title: string; body: string; road: string }[] = [];
 

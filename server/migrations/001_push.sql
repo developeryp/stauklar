@@ -6,6 +6,7 @@ create table if not exists public.devices (
   env text not null default 'production',     -- 'sandbox' für Debug-Builds
   roads text[] not null default '{}',          -- Lieblingsstrecken, z. B. {A7,A1}
   tz text not null default 'Europe/Berlin',
+  digest_time text not null default '06:30',       -- Wunschzeit der Morgenlage
   updated_at timestamptz not null default now()
 );
 

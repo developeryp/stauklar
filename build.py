@@ -466,6 +466,30 @@ def nice_title(project, members):
     return (t[:1].upper() + t[1:]) if t else members[0]["title"]
 
 
+WORK_WORDS = r"[\wäöüß-]*(arbeiten|instandsetzung|instandhaltung|sanierung|erneuerung|neubau|ersatzneubau|umbau|ausbau|rückbau|aufbau|abbau|markierung|reparatur|prüfung|reinigung|grasmahd|mahd|gehölz\w*|leitungs\w*|brücken\w*|tunnel\w*|versiegelung|deckenbau|asphalt\w*|betonsanierung|fahrbahn\w*|bauwerk\w*|beschilderung|sperrung|wartung|montage|verlegung)[\wäöüß-]*"
+WORK_PREFIX = {"grundhafte", "grundhafter", "grundhaften", "teilweise", "nächtliche", "kleine", "große", "vollständige", "komplette", "provisorische"}
+
+
+def what_of(project):
+    """Aus „Büdelsdorf bis Bundesgrenze Dänemark beide RiFa Arbeiten an Schutzeinrichtungen“ → „Arbeiten an Schutzeinrichtungen“"""
+    t = project or ""
+    t = re.sub(r"\((AS|AD|AK)\)", "", t)
+    t = re.sub(r"\b(beide|bde\.?)\s+(RiFa|FR|Fahrtrichtungen|Richtungen)\b", "", t, flags=re.I)
+    t = re.sub(r"\b(RiFa|FR|RF)\s+[\wäöüß/-]+", "", t)
+    t = re.sub(r"\bkm\s*[\d,.\-–]+", "", t)
+    t = re.sub(r"\s+", " ", t).strip(" ,-–")
+    m = re.search(WORK_WORDS, t, flags=re.I)
+    if not m:
+        return ""
+    before = t[:m.start()].rstrip(" ,").split(" ")
+    pre = before[-1] if before and before[-1].lower() in WORK_PREFIX else ""
+    rest = re.split(r"[;(]", t[m.start():])[0]
+    rest = re.sub(r"^\s*A\s?\d+\w*\s+", "", rest)
+    phrase = f"{pre} {rest}".strip(" ,-–")
+    phrase = re.sub(r"\s+", " ", phrase)
+    return (phrase[:1].upper() + phrase[1:])[:70]
+
+
 def section_of(members):
     names = []
     for m in sorted(members, key=lambda x: x["t"]):
@@ -507,8 +531,10 @@ def group_items(items):
             label = SEV_LABEL[sev]
         upcoming = max((len([w for w in m["wins"] if w[1] > NOW]) for m in mem), default=1)
         total = max((m["total"] for m in mem if m.get("total")), default=None)
+        section = section_of(mem)
+        what = what_of(mem[0].get("project") or "")
         groups.append(dict(
-            id=gid, items=[m["id"] for m in mem], title=nice_title(mem[0].get("project"), mem), section=section_of(mem),
+            id=gid, items=[m["id"] for m in mem], title=section or nice_title(mem[0].get("project"), mem), section=section, what=what,
             sev=sev, label=label, active=any(m["active"] for m in mem),
             heute=any(m["w_heute"] for m in mem), woche=any(m["w_woche"] for m in mem),
             show=mem[0]["show"], when=human_when(mem[0]["show"]), upcoming=upcoming, total=total,
@@ -555,7 +581,7 @@ def stop(g, labels):
 <details><summary>
 <span class="node" aria-hidden="true"></span>
 <span class="s-main"><span class="s-when">{now_badge}{e(when)}</span><span class="s-name">{e(g['title'])}</span>
-<span class="s-sub">{e(g['label'])}{(' · ' + e(g['section'])) if g['section'] and g['section'] != g['title'] else ''}</span>
+<span class="s-sub">{e(g['label'])}{(' · ' + e(g['what'])) if g['what'] else ''}</span>
 <span class="dirs">{''.join(lines)}</span></span>
 <span class="chev" aria-hidden="true"></span>
 </summary>
@@ -973,7 +999,7 @@ def api_item(it, labels):
 
 
 def api_group(g):
-    return dict(id=g["id"], items=g["items"], title=g["title"], section=g["section"], sev=g["sev"], label=g["label"],
+    return dict(id=g["id"], items=g["items"], title=g["title"], section=g["section"], what=g["what"], sev=g["sev"], label=g["label"],
                 active=g["active"], heute=g["heute"], woche=g["woche"], when=human_when(g["show"]),
                 start=iso(g["show"][0]), end=iso(g["show"][1]), total=iso(g["total"]), upcoming=g["upcoming"],
                 dirs=[dict(d=x["d"], raw=x["raw"], lanes=x["lanes"], laneText=x["laneText"], where=x["where"], info=x["info"]) for x in g["dirs"]],

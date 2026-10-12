@@ -238,7 +238,7 @@ struct RoadView: View {
                 Toggle(isOn: $showDauer) { Text("Dauerbaustellen").font(.subheadline.weight(.medium)) }
                     .toggleStyle(.switch)
                     .labelsHidden()
-                Text("Dauerbaustellen").font(.subheadline.weight(.medium))
+                Text("Dauerbaustellen").font(.subheadline.weight(.medium)).lineLimit(1).fixedSize()
                 Spacer()
             }
         }
@@ -552,7 +552,7 @@ struct GroupRow: View {
                                     .font(.caption.weight(.semibold)).foregroundStyle(Theme.color(group.severity))
                             }
                             Text(group.title).font(.body.weight(.semibold)).multilineTextAlignment(.leading)
-                            Text(group.section.isEmpty || group.section == group.title ? group.label : "\(group.label) · \(group.section)")
+                            Text((group.what ?? "").isEmpty ? group.label : "\(group.label) · \(group.what!)")
                                 .font(.caption).foregroundStyle(.secondary)
                             VStack(alignment: .leading, spacing: 5) {
                                 ForEach(Array(group.dirs.enumerated()), id: \.offset) { _, d in

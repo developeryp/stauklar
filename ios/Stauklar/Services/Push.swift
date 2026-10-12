@@ -29,6 +29,14 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
     /// Autobahn, die aus einer angetippten Benachrichtigung geöffnet werden soll
     @Published var pendingRoad: String?
 
+    /// Wunschzeit der Morgenlage als „HH:mm“
+    @Published var digestTime: String = UserDefaults.standard.string(forKey: "digestTime") ?? "06:30" {
+        didSet {
+            UserDefaults.standard.set(digestTime, forKey: "digestTime")
+            Task { await sync() }
+        }
+    }
+
     private var token: String? {
         get { UserDefaults.standard.string(forKey: "apnsToken") }
         set { UserDefaults.standard.set(newValue, forKey: "apnsToken") }
@@ -66,7 +74,8 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
         let env = "production"
         #endif
         let body: [String: Any] = ["token": token, "platform": "ios", "env": env, "roads": roads,
-                                   "tz": TimeZone.current.identifier, "updated_at": ISO8601DateFormatter().string(from: Date())]
+                                   "tz": TimeZone.current.identifier, "digest_time": digestTime,
+                                   "updated_at": ISO8601DateFormatter().string(from: Date())]
         let base = Config.supabaseURL.appendingPathComponent("rest/v1/devices")
         func request(_ method: String, _ url: URL) -> URLRequest {
             var req = URLRequest(url: url)

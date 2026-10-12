@@ -52,6 +52,7 @@ struct Group: Codable, Identifiable, Hashable {
     let items: [String]
     let title: String
     let section: String
+    let what: String?
     let sev: String
     let label: String
     let active: Bool
