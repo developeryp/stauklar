@@ -96,7 +96,7 @@ struct SettingsView: View {
 
                 Section {
                     row("stauklar.de", "safari") { web = site }
-                    Link(destination: URL(string: "mailto:hallo@stauklar.de?subject=Stauklar%20App")!) {
+                    Link(destination: URL(string: "mailto:developeryp1@gmail.com?subject=Stauklar%20App")!) {
                         Label("Feedback senden", systemImage: "envelope")
                     }
                     if let url = URL(string: "https://apps.apple.com/app/id6821828685?action=write-review") {
