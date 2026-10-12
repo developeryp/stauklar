@@ -593,7 +593,6 @@ struct RoadMap: View {
                         Color.clear.frame(width: 36, height: 36).contentShape(Circle())
                         Circle().fill(Theme.color(it.severity)).frame(width: on ? 18 : 12, height: on ? 18 : 12)
                             .overlay(Circle().stroke(.white, lineWidth: 2))
-                            .shadow(color: .black.opacity(on ? 0.3 : 0.15), radius: on ? 4 : 1.5, y: 1)
                     }
                     .onTapGesture { onSelect(it.g ?? it.id) }
                 }
@@ -608,7 +607,6 @@ struct RoadMap: View {
                         Color.clear.frame(width: 36, height: 36).contentShape(Circle())
                         Circle().fill(Theme.color(.live)).frame(width: selected == w.id ? 18 : 12, height: selected == w.id ? 18 : 12)
                             .overlay(Circle().stroke(.white, lineWidth: 2))
-                            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
                     }
                     .onTapGesture { onSelect(w.id) }
                 }

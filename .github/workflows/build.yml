@@ -24,6 +24,8 @@ jobs:
       SITE_URL: ${{ vars.SITE_URL }}
       SITE_NAME: ${{ vars.SITE_NAME }}
       BASE_PATH: ${{ vars.BASE_PATH }}
+      APP_STORE_URL: ${{ vars.APP_STORE_URL }}
+      APP_ID: ${{ vars.APP_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

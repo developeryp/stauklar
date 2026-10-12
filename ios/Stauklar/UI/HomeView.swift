@@ -29,6 +29,16 @@ struct HomeView: View {
             .onChange(of: push.pendingRoad) { _, road in
                 if let road { path.append(road); push.pendingRoad = nil }
             }
+            // Universal Links: stauklar.de/a7/ öffnet die A7, stauklar.de/?ort=Berlin den Umkreis
+            .onOpenURL { url in
+                let parts = url.pathComponents.filter { $0 != "/" }
+                if let first = parts.first, first.lowercased().hasPrefix("a"), first.count > 1, let r = store.roads.first(where: { $0.slug == first.lowercased() }) {
+                    path.append(r.id)
+                } else if let ort = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "ort" })?.value,
+                          let c = store.cities.first(where: { $0.name.lowercased() == ort.lowercased() }) {
+                    path.append(NearbyTarget.place(name: c.name, lat: c.lat, lon: c.lon))
+                }
+            }
         }
     }
 
@@ -93,8 +103,10 @@ struct HomeView: View {
                     }
                 }
                 .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
-                .onMapCameraChange(frequency: .continuous) { ctx in
-                    metersPerPoint = ctx.region.span.latitudeDelta * 110_570 / Double(mapHeight)
+                // Nur am Ende einer Geste anpassen, sonst werden alle Punkte bei jedem Bild neu gezeichnet (ruckelt)
+                .onMapCameraChange(frequency: .onEnd) { ctx in
+                    let m = ctx.region.span.latitudeDelta * 110_570 / Double(mapHeight)
+                    if abs(m - metersPerPoint) / metersPerPoint > 0.15 { metersPerPoint = m }
                 }
                 .onTapGesture { pt in
                     // Nächster Punkt im Umkreis von 18 Bildschirmpunkten → genau diese Meldung öffnen, sonst Umkreis dort

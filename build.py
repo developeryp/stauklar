@@ -19,6 +19,9 @@ SITE_URL = (os.environ.get("SITE_URL") or "https://stauklar.de").rstrip("/")
 SITE_NAME = os.environ.get("SITE_NAME") or "Stauklar"
 # Unterordner, solange die Seite unter github.io/stauklar läuft; mit eigener Domain leer lassen
 BASE = (os.environ.get("BASE_PATH") or "").rstrip("/")
+# App-Store-Link und App-ID (für Apples Smart App Banner); leer, solange die App nicht im Store ist
+APP_STORE_URL = os.environ.get("APP_STORE_URL") or ""
+APP_ID = os.environ.get("APP_ID") or ""
 NOW = dt.datetime.now(TZ).replace(tzinfo=None, second=0, microsecond=0)
 TONIGHT_END = (NOW + dt.timedelta(days=1)).replace(hour=6, minute=0)
 WEEK_END = NOW + dt.timedelta(days=7)
@@ -680,6 +683,7 @@ def page(title, desc, path, body, jsonld=(), extra_head="", body_class=""):
 <meta property="og:url" content="{canonical}">
 <meta property="og:locale" content="de_DE">
 <meta name="theme-color" content="#1650a8">
+{f'<meta name="apple-itunes-app" content="app-id={APP_ID}, app-argument={canonical}">' if APP_ID else ''}
 <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/assets/style.css?v={VER}">
 {ld}{extra_head}
@@ -840,11 +844,7 @@ def road_page(road, d, near):
 <div><dt><i class="sw live"></i>Stau oder Gefahr</dt><dd>Aktuelle Meldung der Autobahn GmbH, alle zwei Minuten neu geladen.</dd></div>
 <div><dt>Spurgrafik</dt><dd>Zeigt die Fahrbahn in Fahrtrichtung: Pfeil = Spur frei, rot-weiß = Spur gesperrt, schmaler Streifen = Standstreifen, gelbe Linie = Mittelstreifen.</dd></div>
 </dl></details>
-<aside class="app-teaser">
-  <div><h2>Sag mir einfach Bescheid, wenn's auf meiner Strecke zu ist.</h2>
-  <p>Bald als App: Strecke auf der {e(road)} einmal festlegen, morgens eine Nachricht bekommen, wenn dort heute gesperrt wird.</p></div>
-  <span class="soon">Kommt bald</span>
-</aside>
+{app_teaser(road)}
 {svc}
 <section class="block faq"><h2>Häufige Fragen zur {e(road)}</h2>
 {''.join(f'<details class="more"><summary>{e(q)}</summary><p>{e(a)}</p></details>' for q, a in faq)}
@@ -933,6 +933,7 @@ def index_page(roads, data):
   <ul class="tiles">{''.join(tiles)}</ul>
 </section>
 
+{app_teaser(None)}
 <section class="block wide why">
   <div><b>Offizielle Daten</b><p>Direkt von der Autobahn GmbH des Bundes, ohne Umweg.</p></div>
   <div><b>Alle 15 Minuten neu</b><p>Staus und Unfälle sogar live, während du die Seite offen hast.</p></div>
@@ -945,7 +946,49 @@ def index_page(roads, data):
     return page("Stauklar: Sperrungen, Baustellen & Staus auf der Karte", desc, "/", body, jsonld, extra_head=MAP_HEAD, body_class="p-home")
 
 
+def app_teaser(road):
+    """Hinweis auf die App; wird zum Download-Link, sobald APP_STORE_URL gesetzt ist."""
+    what = f"Strecke auf der {e(road)} einmal festlegen" if road else "Lieblingsstrecken einmal festlegen"
+    if APP_STORE_URL:
+        cta = f'<a class="btn" href="{e(APP_STORE_URL)}" rel="noopener">Im App Store laden</a>'
+        lead = f"Mit der Stauklar-App: {what}, morgens die Lage bekommen und sofort Bescheid bei neuen Vollsperrungen."
+    else:
+        cta = '<a class="soon" href="/app/">Bald im App Store</a>'
+        lead = f"Bald als App: {what}, morgens eine Nachricht bekommen, wenn dort heute gesperrt wird."
+    return f"""<aside class="app-teaser">
+  <div><h2>Sag mir einfach Bescheid, wenn's auf meiner Strecke zu ist.</h2>
+  <p>{lead}</p></div>
+  {cta}
+</aside>"""
+
+
+def app_page():
+    cta = (f'<a class="btn big" href="{e(APP_STORE_URL)}" rel="noopener">Im App Store laden</a>' if APP_STORE_URL
+           else '<p class="soon-note">Die App ist in Vorbereitung und erscheint in Kürze im App Store. Bis dahin funktioniert alles hier auf der Website.</p>')
+    body = f"""<main class="legal appinfo">
+<h1>Die Stauklar-App</h1>
+<p class="lead">Alle Sperrungen, Baustellen und Staus deiner Strecken auf dem iPhone. Mit Benachrichtigungen, bevor du losfährst.</p>
+{cta}
+<h2>Was die App kann</h2>
+<ul>
+<li><strong>Meine Strecken:</strong> Lieblingsautobahnen merken und morgens auf einen Blick sehen, ob sie frei sind.</li>
+<li><strong>Morgenlage:</strong> Zur Wunschzeit eine Nachricht mit allen Sperrungen des Tages auf deinen Strecken.</li>
+<li><strong>Sofortmeldung:</strong> Push, sobald auf einer deiner Strecken eine neue Vollsperrung auftaucht.</li>
+<li><strong>In meiner Nähe:</strong> Alles im Umkreis deines Standorts, nach Entfernung sortiert.</li>
+<li><strong>Karte und Spurgrafik:</strong> Jeder Abschnitt genau auf der Karte, jede gesperrte Spur als Grafik.</li>
+</ul>
+<h2>Datenschutz</h2>
+<p>Die App speichert keine Konten. Für Benachrichtigungen werden nur das Push-Token deines Geräts, deine Lieblingsstrecken und die Wunschzeit auf unserem Server gespeichert. Dein Standort bleibt auf dem Gerät. Details in der <a href="/datenschutz/">Datenschutzerklärung</a>.</p>
+</main>"""
+    jsonld = [{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": SITE_NAME, "operatingSystem": "iOS",
+               "applicationCategory": "TravelApplication", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
+               **({"installUrl": APP_STORE_URL} if APP_STORE_URL else {})}]
+    return page(f"{SITE_NAME}-App für iPhone: Sperrungen auf deinen Strecken", "Die Stauklar-App meldet sich morgens und bei neuen Vollsperrungen auf deinen Lieblingsstrecken. Mit Karte, Spurgrafik und Umkreissuche.", "/app/", body, jsonld)
+
+
 def legal_pages():
+    (DIST / "app").mkdir(parents=True, exist_ok=True)
+    (DIST / "app" / "index.html").write_text(app_page())
     imp = """<h1>Impressum</h1>
 <h2>Angaben gemäß § 5 DDG</h2>
 <p>Yacouba Pfälzner<br>Ehrenbergstraße 17<br>14195 Berlin</p>
@@ -1101,7 +1144,7 @@ def main():
     (DIST / "index.html").write_text(index_page(roads, data))
     legal_pages()
     lastmod = NOW.replace(tzinfo=TZ).isoformat()
-    urls = [SITE_URL + "/"] + [f"{SITE_URL}/{slug(r)}/" for r in roads]
+    urls = [SITE_URL + "/", SITE_URL + "/app/"] + [f"{SITE_URL}/{slug(r)}/" for r in roads]
     (DIST / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
         + "".join(f"  <url><loc>{u}</loc><lastmod>{lastmod}</lastmod></url>\n" for u in urls) + "</urlset>\n")

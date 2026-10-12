@@ -208,7 +208,13 @@ details[open] .chev{transform:rotate(225deg);margin:5px 6px 0 0}
 .app-teaser{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;margin-top:24px;padding:28px;border-radius:var(--r);background:var(--fill)}
 .app-teaser h2{font-size:clamp(22px,2.6vw,28px);margin:0 0 6px;max-width:26ch}
 .app-teaser p{margin:0;max-width:60ch;color:var(--muted);font-size:16px}
-.soon{font-size:13px;font-weight:600;background:var(--surface);color:var(--muted);padding:8px 14px;border-radius:999px;box-shadow:0 0 0 1px var(--hair)}
+.soon{font-size:13px;font-weight:600;background:var(--surface);color:var(--muted);padding:8px 14px;border-radius:999px;box-shadow:0 0 0 1px var(--hair);text-decoration:none}
+.btn{display:inline-block;font-size:15px;font-weight:600;background:var(--accent);color:var(--on-accent);padding:10px 18px;border-radius:999px;text-decoration:none}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+.btn.big{font-size:17px;padding:13px 24px;margin:6px 0 10px}
+.appinfo .lead{font-size:19px;color:var(--muted);margin:0 0 18px}
+.appinfo ul{padding-left:20px;color:var(--muted);font-size:16px;line-height:1.6}
+.soon-note{background:var(--fill);border-radius:12px;padding:12px 16px;color:var(--muted)}
 .more{background:var(--fill);border-radius:var(--r-s);padding:14px 18px;margin-bottom:8px;max-width:820px}
 .more>summary{font-weight:500;cursor:pointer;font-size:16px}
 .more p{margin:10px 0 2px;max-width:68ch;color:var(--muted);font-size:15px}

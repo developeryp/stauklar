@@ -48,6 +48,14 @@ mit diesen Repository-Variablen (Settings → Secrets and variables → Actions 
 GitHub startet geplante Läufe teilweise mit einigen Minuten Verspätung,
 die Staumeldungen kommen aber ohnehin live über `app.js`.
 
+## Sobald die App im App Store ist
+
+Zwei Repository-Variablen setzen, dann verlinkt die Website die App automatisch (Download-Knöpfe, Seite /app/, Apples Smart App Banner auf jeder Seite):
+- `APP_STORE_URL` = `https://apps.apple.com/de/app/stauklar/id1234567890`
+- `APP_ID` = `1234567890` (die Zahl aus der URL)
+
+Universal Links: `static/.well-known/apple-app-site-association` verknüpft stauklar.de mit der App (Team 6AY5V43PJ2, Bundle de.stauklar.app). Wer die App hat und einen Link wie stauklar.de/a7/ öffnet, landet direkt in der App.
+
 ## Vor dem Start erledigen
 
 - `impressum/` und `datenschutz/` in `build.py` (Funktion `legal_pages`) mit echten Angaben füllen.
