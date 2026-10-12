@@ -428,14 +428,22 @@
       }
       if (sevOn) setFilters();
 
-      for (const id of ['lines', 'points']) {
-        map.on('click', id, ev => {
-          const p = ev.features[0].properties;
-          if (route) { highlight(p.g); openStop(p.g); } else if (p.url) showPopup(p, ev.lngLat);
-        });
-        map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
-        map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
-      }
+      // Treffer großzügig suchen: Linien sind nur wenige Pixel breit, auf dem Handy trifft man sie sonst kaum.
+      // Gewählt wird die wichtigste Meldung im Umkreis von 14 px, bei Gleichstand die nächste.
+      const HIT = 14;
+      const pick = pt => {
+        const fs = map.queryRenderedFeatures([[pt.x - HIT, pt.y - HIT], [pt.x + HIT, pt.y + HIT]], { layers: ['lines', 'points'] });
+        if (!fs.length) return null;
+        fs.sort((a, b) => (b.properties.rank - a.properties.rank));
+        return fs[0];
+      };
+      map.on('click', ev => {
+        const f = pick(ev.point);
+        if (!f) return;
+        const p = f.properties;
+        if (route) { highlight(p.g); openStop(p.g); } else if (p.url) showPopup(p, ev.lngLat);
+      });
+      map.on('mousemove', ev => { map.getCanvas().style.cursor = pick(ev.point) ? 'pointer' : ''; });
     });
   }
 
