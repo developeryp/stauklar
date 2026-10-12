@@ -188,7 +188,9 @@ struct HomeView: View {
         Button { nav.tab = .settings } label: {
             HStack(spacing: 10) {
                 Image(systemName: push.authorized ? "bell.badge.fill" : "bell").foregroundStyle(Theme.accent)
-                Text(push.authorized ? "Morgenlage um \(push.digestTime) Uhr, Sofortmeldung bei Vollsperrungen." : "Morgens Bescheid bekommen? Benachrichtigungen einschalten.")
+                Text(!push.authorized ? "Morgens Bescheid bekommen? Benachrichtigungen einschalten."
+                     : [push.digestOn ? "Morgenlage um \(push.digestTime) Uhr" : nil, push.alertsOn ? "Sofortmeldung bei Vollsperrungen" : nil]
+                        .compactMap { $0 }.joined(separator: ", ").nonEmpty.map { $0 + "." } ?? "Benachrichtigungen sind ausgeschaltet.")
                     .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.leading)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)

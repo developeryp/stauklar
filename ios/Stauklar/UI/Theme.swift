@@ -184,6 +184,7 @@ struct SevChip: View {
 struct SevChips: View {
     @Binding var on: Set<Severity>
     var body: some View {
+        // Läuft bis an den Bildschirmrand, damit beim Wischen kein Knopf am Seitenrand abgeschnitten wirkt
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(SevChip.all, id: \.0) { s, t in
@@ -192,6 +193,8 @@ struct SevChips: View {
                     }
                 }
             }
+            .padding(.horizontal, 18)
         }
+        .padding(.horizontal, -18)
     }
 }

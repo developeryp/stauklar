@@ -2,6 +2,7 @@
 
 Supabase-Projekt „Stauklar“ (`lcpfcgbfsibmankfwsqn`, Region Frankfurt, kostenloser Tarif).
 
+- `migrations/002_push_switches.sql`: Morgenlage (`digest_on`) und Sofortmeldung (`alerts_on`) je Gerät abschaltbar.
 - `migrations/001_push.sql`: Tabellen `devices` (Token + Lieblingsstrecken) und `sent` (schon verschickte Meldungen),
   Funktion `get_secret()` für den Vault, Erweiterungen pg_cron und pg_net.
 - `functions/notify/index.ts`: Edge Function. Läuft jede Minute (pg_cron-Job `stauklar-notify`):

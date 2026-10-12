@@ -10,7 +10,7 @@ const SITE = "https://stauklar.de/api/v1";
 const TOPIC = "de.stauklar.app";
 const TEAM_ID = "6AY5V43PJ2";
 
-type Device = { token: string; env: string; roads: string[]; tz: string; digest_time?: string };
+type Device = { token: string; env: string; roads: string[]; tz: string; digest_time?: string; digest_on?: boolean; alerts_on?: boolean };
 type Item = { id: string; title: string; sev: string; label: string; heute: boolean; active: boolean; when: string; start: string | null };
 type Road = { id: string; items: Item[] };
 
@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
   const cronSecret = await secret("cron_secret");
   if (req.headers.get("x-cron-secret") !== cronSecret) return new Response("Nicht erlaubt", { status: 401 });
 
-  const devices = (await (await sb("devices?select=token,env,roads,tz,digest_time")).json()) as Device[];
+  const devices = (await (await sb("devices?select=token,env,roads,tz,digest_time,digest_on,alerts_on")).json()) as Device[];
   const stats = { devices: devices.length, pushed: 0, removed: 0, errors: 0, skipped: 0 };
   if (!devices.some((d) => d.roads?.length)) return Response.json(stats);
 
@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
       for (const it of cl) {
         const k = key(rid, it);
         if (it.sev === "voll" && !sent.has(`${d.token}|${k}`)) {
-          if (!isNew) messages.push({ title: `${rid} voll gesperrt`, body: `${it.title}, ${it.when}`, road: rid });
+          if (!isNew && d.alerts_on !== false) messages.push({ title: `${rid} voll gesperrt`, body: `${it.title}, ${it.when}`, road: rid });
           newSent.push(k);
         }
       }
@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (digestTime && digestLines.length && !sent.has(`${d.token}|${digestKey}`)) {
+    if (digestTime && d.digest_on !== false && digestLines.length && !sent.has(`${d.token}|${digestKey}`)) {
       messages.push({ title: "Deine Strecken heute", body: digestLines.join("\n"), road: d.roads[0] });
       newSent.push(digestKey);
     }

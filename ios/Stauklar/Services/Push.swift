@@ -38,6 +38,14 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
         }
     }
 
+    /// Morgenlage und Sofortmeldung einzeln abschaltbar
+    @Published var digestOn: Bool = UserDefaults.standard.object(forKey: "digestOn") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(digestOn, forKey: "digestOn"); Task { await sync() } }
+    }
+    @Published var alertsOn: Bool = UserDefaults.standard.object(forKey: "alertsOn") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(alertsOn, forKey: "alertsOn"); Task { await sync() } }
+    }
+
     private var token: String? {
         get { UserDefaults.standard.string(forKey: "apnsToken") }
         set { UserDefaults.standard.set(newValue, forKey: "apnsToken") }
@@ -77,7 +85,8 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
         #endif
         // Serverfunktion register_device: legt an oder aktualisiert, ohne dass die App die Tabelle lesen darf
         let body: [String: Any] = ["p_token": token, "p_platform": "ios", "p_env": env, "p_roads": roads,
-                                   "p_tz": TimeZone.current.identifier, "p_digest_time": digestTime]
+                                   "p_tz": TimeZone.current.identifier, "p_digest_time": digestTime,
+                                   "p_digest_on": digestOn, "p_alerts_on": alertsOn]
         var req = URLRequest(url: Config.supabaseURL.appendingPathComponent("rest/v1/rpc/register_device"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")

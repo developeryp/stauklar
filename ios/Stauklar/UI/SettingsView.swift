@@ -17,8 +17,11 @@ struct SettingsView: View {
                 Section {
                     if push.authorized {
                         Label("Benachrichtigungen sind an", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                        DatePicker("Morgenlage um", selection: digestBinding, displayedComponents: .hourAndMinute)
-                        Toggle("Sofort bei neuen Vollsperrungen", isOn: .constant(true)).disabled(true)
+                        Toggle("Morgenlage", isOn: $push.digestOn)
+                        if push.digestOn {
+                            DatePicker("Uhrzeit", selection: digestBinding, displayedComponents: .hourAndMinute)
+                        }
+                        Toggle("Sofort bei neuen Vollsperrungen", isOn: $push.alertsOn)
                         Button("In den iOS-Einstellungen ändern") { openSystemSettings() }
                     } else if push.denied {
                         Label("In den iOS-Einstellungen ausgeschaltet", systemImage: "bell.slash").foregroundStyle(.secondary)
@@ -36,7 +39,7 @@ struct SettingsView: View {
                 } footer: {
                     Text(store.favorites.isEmpty
                          ? "Gilt für deine Strecken. Du hast noch keine: Tipp auf einer Autobahn-Seite auf den Stern."
-                         : "Morgens zur Wunschzeit die Lage auf deinen Strecken, nur wenn dort etwas gesperrt ist. Dazu sofort eine Nachricht bei jeder neuen Vollsperrung, auch nachts.")
+                         : "Morgenlage: zur Wunschzeit die Lage auf deinen Strecken, nur wenn dort etwas gesperrt ist. Sofortmeldung: eine Nachricht bei jeder neuen Vollsperrung, auch nachts. Beides einzeln abschaltbar.")
                 }
 
                 Section {

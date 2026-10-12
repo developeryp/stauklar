@@ -244,3 +244,8 @@ func roadSortKey(_ id: String) -> (Int, String) {
     let digits = id.drop(while: { !$0.isNumber }).prefix(while: { $0.isNumber })
     return (Int(digits) ?? 9999, id)
 }
+
+extension String {
+    /// nil statt leerer Zeichenkette
+    var nonEmpty: String? { isEmpty ? nil : self }
+}
