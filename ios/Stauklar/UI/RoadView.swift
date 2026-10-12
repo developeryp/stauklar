@@ -629,11 +629,23 @@ struct GroupRow: View {
                                 .font(.caption).foregroundStyle(.secondary)
                             VStack(alignment: .leading, spacing: 5) {
                                 ForEach(Array(group.dirs.enumerated()), id: \.offset) { _, d in
-                                    HStack(spacing: 8) {
-                                        Text(dirName(d)).font(.caption.weight(.semibold)).frame(minWidth: 86, alignment: .leading)
-                                        if !d.lanes.isEmpty { LaneGraphic(symbols: d.lanes) }
-                                        Text(d.laneText.isEmpty ? (group.severity == .voll ? "gesperrt" : "Baustelle") : d.laneText)
-                                            .font(.caption).foregroundStyle(.secondary)
+                                    // Breite Spurgrafiken: Text darunter statt daneben, damit nichts gequetscht wird
+                                    ViewThatFits(in: .horizontal) {
+                                        HStack(spacing: 8) {
+                                            Text(dirName(d)).font(.caption.weight(.semibold)).frame(width: 86, alignment: .leading).fixedSize()
+                                            if !d.lanes.isEmpty { LaneGraphic(symbols: d.lanes) }
+                                            Text(d.laneText.isEmpty ? (group.severity == .voll ? "gesperrt" : "Baustelle") : d.laneText)
+                                                .font(.caption).foregroundStyle(.secondary).fixedSize()
+                                        }
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            HStack(spacing: 8) {
+                                                Text(dirName(d)).font(.caption.weight(.semibold)).frame(width: 86, alignment: .leading).fixedSize()
+                                                if !d.lanes.isEmpty { LaneGraphic(symbols: d.lanes) }
+                                            }
+                                            Text(d.laneText.isEmpty ? (group.severity == .voll ? "gesperrt" : "Baustelle") : d.laneText)
+                                                .font(.caption).foregroundStyle(.secondary)
+                                                .padding(.leading, 94)
+                                        }
                                     }
                                 }
                                 ForEach(group.ramps, id: \.self) { r in
