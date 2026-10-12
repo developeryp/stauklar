@@ -391,3 +391,9 @@ details[open] .chev{transform:rotate(225deg);margin:5px 6px 0 0}
   /* Autobahnseite: Karte niedriger, damit die erste Meldung ohne Scrollen sichtbar ist */
   .p-road #map{height:34vh;min-height:230px}
 }
+
+/* Kopfzeile darf nie breiter als der Bildschirm werden: Navigation schrumpft und wird wischbar */
+.bar-in{min-width:0}
+.topnav{min-width:0;flex:1 1 auto;justify-content:flex-end}
+@media (max-width:640px){ .topnav{justify-content:flex-start} }
+html,body{overflow-x:clip}
