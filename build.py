@@ -419,7 +419,7 @@ def stop(it, labels):
     upcoming = [w for w in it["wins"] if w[1] > NOW]
     dlab = labels.get(it["d"]) if it["d"] else None
     dir_txt = f'{dlab["sym"]} Richtung {e(dlab["name"])}' if dlab else f"Richtung {e(arrow(it['dir']))}"
-    tokens = " ".join(k for k, on in (("heute", it["w_heute"]), ("woche", it["w_woche"]), ("alle", True)) if on)
+    tokens = " ".join(k for k, on in (("heute", it["w_heute"]), ("woche", it["w_woche"]), ("geplant", not it["w_heute"]), ("alle", True)) if on)
     graphic, lane_txt = lanes(it.get("lanes") or [])
     q = " ".join([it["title"], it["dir"], it.get("where", ""), it.get("project", "")]).lower()
     rows = [("Zeitraum", fwin(it["show"]))]
@@ -668,7 +668,7 @@ def road_page(road, d, near):
 </section>
 
 <div class="controls" id="controls"><div class="controls-in">
-  {seg("w", [("heute", "Heute"), ("woche", "7 Tage"), ("alle", "Alles")], default_w)}
+  {seg("w", [("heute", "Heute"), ("woche", "7 Tage"), ("geplant", "Geplant"), ("alle", "Alles")], default_w)}
   {seg("d", dir_opts, "") if len(dir_opts) > 2 else ''}
   <label class="tog"><input type="checkbox" id="dauer"{"" if (n_short or n_full or warns) else " checked"}><span class="tog-ui" aria-hidden="true"></span>Dauerbaustellen</label>
   <button type="button" class="locate" id="locate"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M14.3 1.7 1.9 6.6c-.7.3-.6 1.3.1 1.5l5 1.4 1.4 5c.2.7 1.2.8 1.5.1l4.9-12.4c.3-.7-.4-1.4-1.1-1.1z" fill="currentColor"/></svg><span class="lbl">In meiner Nähe</span></button>

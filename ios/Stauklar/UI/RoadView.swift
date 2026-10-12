@@ -16,7 +16,7 @@ struct RoadView: View {
     @State private var fullMap = false
 
     enum When: String, CaseIterable, Identifiable {
-        case heute = "Heute", woche = "7 Tage", alle = "Alles"
+        case heute = "Heute", woche = "7 Tage", geplant = "Geplant", alle = "Alles"
         var id: String { rawValue }
     }
 
@@ -59,8 +59,18 @@ struct RoadView: View {
     // MARK: - Filter
 
     private func matches(_ it: Item, _ d: RoadDetail) -> Bool {
-        let w = when == .heute ? it.heute : when == .woche ? it.woche : true
+        let w = Self.inWindow(it, when)
         return w && (dir.isEmpty || it.d.isEmpty || it.d == dir) && (showDauer || it.severity != .dauer)
+    }
+
+    /// Heute = gilt bis morgen früh, 7 Tage = beginnt innerhalb einer Woche, Geplant = beginnt erst nach heute
+    private static func inWindow(_ it: Item, _ w: When) -> Bool {
+        switch w {
+        case .heute: return it.heute
+        case .woche: return it.woche
+        case .geplant: return !it.heute
+        case .alle: return true
+        }
     }
 
     private func visible(_ d: RoadDetail) -> [Item] {
@@ -69,15 +79,16 @@ struct RoadView: View {
     }
 
     private func visibleWarns(_ d: RoadDetail) -> [Warn] {
+        if when == .geplant { return [] }
         let list = d.warns.filter { dir.isEmpty || $0.d.isEmpty || $0.d == dir }.sorted { $0.t < $1.t }
         return dir == "minus" ? list.reversed() : list
     }
 
     private func count(_ w: When, _ d: RoadDetail) -> Int {
         d.items.filter { it in
-            let m = w == .heute ? it.heute : w == .woche ? it.woche : true
+            let m = Self.inWindow(it, w)
             return m && (dir.isEmpty || it.d.isEmpty || it.d == dir) && (showDauer || it.severity != .dauer)
-        }.count + d.warns.count
+        }.count + (w == .geplant ? 0 : d.warns.count)
     }
 
     // MARK: - Inhalt
@@ -192,7 +203,7 @@ struct RoadView: View {
     private func filters(_ d: RoadDetail) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Picker("Zeitraum", selection: $when) {
-                ForEach(When.allCases) { w in Text("\(w.rawValue) \(count(w, d))").tag(w) }
+                ForEach(When.allCases) { w in Text(w == .geplant ? w.rawValue : "\(w.rawValue) \(count(w, d))").tag(w) }
             }
             .pickerStyle(.segmented)
             HStack(spacing: 10) {
