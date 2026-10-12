@@ -808,6 +808,20 @@ def lage(road, items, warns):
     return " ".join(out)
 
 
+NAV = (("/vollsperrungen/", "Vollsperrungen"), ("/wochenende/", "Wochenende"), ("/stadt/", "Städte"), ("/#alle", "Alle Autobahnen"))
+
+
+def topnav(path):
+    """Schmale Navigation oben; der aktive Bereich ist hervorgehoben."""
+    out = []
+    for href, label in NAV:
+        base = href.split("#")[0]
+        on = base != "/" and path.startswith(base)
+        cur = ' aria-current="page"' if on else ""
+        out.append(f'<a href="{href}"{cur}>{label}</a>')
+    return "".join(out)
+
+
 def page(title, desc, path, body, jsonld=(), extra_head="", body_class=""):
     canonical = SITE_URL + path
     ld = "".join(f'<script type="application/ld+json">{json.dumps(j, ensure_ascii=False)}</script>' for j in jsonld)
@@ -837,6 +851,7 @@ def page(title, desc, path, body, jsonld=(), extra_head="", body_class=""):
 <body class="{body_class}">
 <header class="bar"><div class="bar-in">
 <a href="/" class="brand" aria-label="{e(SITE_NAME)} – Startseite"><span class="brand-mark" aria-hidden="true"></span>{wordmark()}</a>
+<nav class="topnav" aria-label="Hauptnavigation">{topnav(path)}</nav>
 <span class="fresh">Aktualisiert {NOW:%H:%M} Uhr</span>
 </div></header>
 {body}
@@ -1079,7 +1094,7 @@ def index_page(roads, data):
   <div class="hots">{''.join(cards)}</div>
 </section>
 
-<section class="block wide">
+<section class="block wide" id="alle">
   <h2>Alle Autobahnen</h2>
   <p class="sub"><span class="dot rot"></span>Vollsperrung oder Stau <span class="dot gelb"></span>eingeschränkt <span class="dot gruen"></span>nur Dauerbaustellen</p>
   <ul class="tiles">{''.join(tiles)}</ul>

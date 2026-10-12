@@ -374,3 +374,20 @@ details[open] .chev{transform:rotate(225deg);margin:5px 6px 0 0}
 
 /* Desktop: Suche schmaler, damit sie in die erste Zeile passt und die Leiste zweizeilig bleibt */
 @media (min-width:701px){ .ctl-row .find{flex:1 1 160px;max-width:260px;min-width:140px;margin-left:auto} }
+
+/* Navigation in der Kopfzeile */
+.topnav{display:flex;gap:4px;margin-left:auto;overflow-x:auto;scrollbar-width:none}
+.topnav::-webkit-scrollbar{display:none}
+.topnav a{font-size:14px;font-weight:500;color:var(--ink);padding:6px 10px;border-radius:999px;white-space:nowrap}
+.topnav a:hover{background:var(--fill);text-decoration:none}
+.topnav a[aria-current="page"]{background:var(--fill-2);font-weight:600}
+.bar-in .fresh{flex:none}
+@media (max-width:820px){ .bar-in .fresh{display:none} }
+@media (max-width:640px){
+  .bar-in{gap:8px;padding-inline:16px}
+  .brand{flex:none}
+  .topnav{margin-left:8px;mask-image:linear-gradient(90deg,#000 85%,transparent);-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent)}
+  .topnav a{font-size:13px;padding:6px 8px}
+  /* Autobahnseite: Karte niedriger, damit die erste Meldung ohne Scrollen sichtbar ist */
+  .p-road #map{height:34vh;min-height:230px}
+}
