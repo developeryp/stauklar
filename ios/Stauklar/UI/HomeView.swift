@@ -22,6 +22,7 @@ struct HomeView: View {
             .navigationTitle("Stauklar")
             .navigationDestination(for: String.self) { RoadView(roadID: $0) }
             .navigationDestination(for: RoadTarget.self) { RoadView(roadID: $0.road, focusItem: $0.item) }
+            .navigationDestination(for: DriveTarget.self) { _ in DriveView() }
             .navigationDestination(for: NearbyTarget.self) { NearbyView(target: $0) }
             .searchable(text: $query, prompt: "Autobahn oder Stadt")
             .refreshable { await store.load() }
@@ -76,14 +77,26 @@ struct HomeView: View {
                     KPI(value: t.live, label: "Staus & Gefahren", color: Theme.color(.live))
                 }
             }
-            NavigationLink(value: NearbyTarget.me) {
-                Label("In meiner Nähe", systemImage: "location.fill")
-                    .font(.body.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
+            HStack(spacing: 10) {
+                NavigationLink(value: NearbyTarget.me) {
+                    Label("In meiner Nähe", systemImage: "location.fill")
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                NavigationLink(value: DriveTarget()) {
+                    Label("Fahrmodus", systemImage: "car.fill")
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
             }
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.capsule)
+            Text("Fahrmodus: erkennt deine Autobahn und zeigt mit Entfernung, was vor dir liegt. Nur für den Beifahrer, nicht während der Fahrt bedienen.")
+                .font(.caption).foregroundStyle(.tertiary)
         }
     }
 

@@ -218,6 +218,9 @@ struct RoadTarget: Hashable {
     let item: String?
 }
 
+/// Fahrmodus
+struct DriveTarget: Hashable {}
+
 /// Ziel der Umkreisansicht: eigener Standort oder ein Ort
 enum NearbyTarget: Hashable {
     case me
