@@ -162,6 +162,15 @@ def build_items(road):
     return out
 
 
+def warn_id(w):
+    """Feste Kennung eines Staus aus seinem Inhalt (Titel, Richtung, erste Zeile mit „seit …“).
+    Muss mit warnId() in app.js übereinstimmen, damit Links den Stau auch nach dem Live-Nachladen finden."""
+    h = 5381
+    for ch in f"{w['title']}|{w['dir']}|{(w['text'] or [''])[0]}":
+        h = (h * 33 + ord(ch)) & 0xFFFFFFFF
+    return "w" + format(h, "x")
+
+
 def build_warnings(road):
     res = []
     for x in load(road, "warning"):
@@ -1570,8 +1579,8 @@ def main():
         for n, it in enumerate(items):
             it["id"] = f"m{n}"
             enrich(it)
-        for n, w in enumerate(warns):
-            w["id"] = f"w{n}"
+        for w in warns:
+            w["id"] = warn_id(w)
         ax, labels = assign_directions(r, items, warns)
         parking, charging = build_services(r)
         data[r] = dict(items=items, warns=warns, groups=group_items(items), parking=parking, charging=charging, ax=ax, labels=labels, c=centroid(items, warns))

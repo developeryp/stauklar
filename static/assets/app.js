@@ -498,15 +498,23 @@
   const along = (lon, lat) => { const [x, y] = toKm(lon, lat); return (x - ax.mx) * ax.vx + (y - ax.my) * ax.vy; };
   const strip = t => t.replace(new RegExp('^' + road + '\\s*\\|\\s*'), '').trim();
 
+  // Feste Kennung wie warn_id() in build.py: gleicher Stau → gleiche Kennung, auch nach dem Nachladen
+  function warnId(title, sub, first) {
+    let h = 5381;
+    for (const ch of `${title}|${sub}|${first}`) h = (Math.imul(h, 33) + ch.codePointAt(0)) >>> 0;
+    return 'w' + h.toString(16);
+  }
+  let liveRuns = 0;
   async function live() {
     try {
       const r = await fetch('https://verkehr.autobahn.de/o/autobahn/' + encodeURIComponent(road) + '/services/warning');
       if (!r.ok) return;
       const list = (await r.json()).warning || [];
+      // Offene Staus merken, damit sie nach dem Neuaufbau offen bleiben
+      const wasOpen = new Set($$('.stop.sev-live', route).filter(li => $('details', li).open).map(li => li.id));
       $$('.stop.sev-live', route).forEach(li => li.remove());
       const feats = [];
-      list.forEach((w, n) => {
-        const id = 'w' + n;
+      list.forEach((w) => {
         const g = w.geometry && w.geometry.type === 'LineString' ? w.geometry.coordinates : null;
         const txt = (w.description || []).filter(l => l && !l.startsWith('Beginn:') && l !== 'Ereignismeldung:').slice(0, 4);
         let t = 0, d = '';
@@ -519,6 +527,7 @@
         const lab = labels[d];
         const dir = lab ? `${lab.sym} Richtung ${esc(lab.name)}` : 'Richtung ' + esc((w.subtitle || '').trim().replace('->', '→'));
         const title = strip(w.title || '');
+        const id = warnId(title, (w.subtitle || '').trim(), txt[0] || '');
         const li = document.createElement('li');
         li.className = 'stop sev-live'; li.id = id;
         li.dataset.t = t.toFixed(2); li.dataset.d = d; li.dataset.w = 'heute woche alle';
@@ -526,6 +535,7 @@
         li.innerHTML = `<details><summary><span class="node" aria-hidden="true"></span><span class="s-main"><span class="s-when"><span class="badge live">live</span>${esc(txt[0] || 'aktuell')}</span><span class="s-name">${esc(title)}</span><span class="s-sub">Stau, Unfall oder Gefahr · ${dir}</span></span><span class="chev" aria-hidden="true"></span></summary><div class="s-body">${txt.slice(1).map(l => `<p>${esc(l.replace('->', '→'))}</p>`).join('')}${g ? `<button type="button" class="tomap" data-id="${id}">Auf der Karte</button>` : ''}</div></details>`;
         const after = $$('.stop', route).find(x => parseFloat(x.dataset.t) > t);
         route.insertBefore(li, after || null);
+        if (wasOpen.has(id)) $('details', li).open = true;
         if (g) {
           const p = { id, g: id, sev: 'live', now: 1, title, kind: 'Verkehrsmeldung', when: txt[0] || '', rank: 4 };
           feats.push({ type: 'Feature', properties: p, geometry: { type: 'LineString', coordinates: g } });
@@ -539,6 +549,10 @@
         map.getSource('m').setData(data);
       }
       apply(false);
+      // Erster Lauf: verlinkter Stau ist jetzt neu aufgebaut → wieder öffnen und ins Bild holen
+      if (liveRuns++ === 0 && linkTarget && linkTarget.startsWith('w')) {
+        if (document.getElementById(linkTarget)) { openStop(linkTarget); if (map && map.getLayer('lines')) focusOnMap(linkTarget, false); }
+      }
     } catch (err) { /* statischer Stand bleibt stehen */ }
   }
   if (route && road) {
