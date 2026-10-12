@@ -65,17 +65,27 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
         #else
         let env = "production"
         #endif
-        var req = URLRequest(url: Config.supabaseURL.appendingPathComponent("rest/v1/devices"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue(Config.supabaseKey, forHTTPHeaderField: "apikey")
-        req.setValue("Bearer \(Config.supabaseKey)", forHTTPHeaderField: "Authorization")
-        req.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
         let body: [String: Any] = ["token": token, "platform": "ios", "env": env, "roads": roads,
                                    "tz": TimeZone.current.identifier, "updated_at": ISO8601DateFormatter().string(from: Date())]
-        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        let base = Config.supabaseURL.appendingPathComponent("rest/v1/devices")
+        func request(_ method: String, _ url: URL) -> URLRequest {
+            var req = URLRequest(url: url)
+            req.httpMethod = method
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.setValue(Config.supabaseKey, forHTTPHeaderField: "apikey")
+            req.setValue("Bearer \(Config.supabaseKey)", forHTTPHeaderField: "Authorization")
+            req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+            req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+            return req
+        }
         do {
-            let (_, resp) = try await URLSession.shared.data(for: req)
+            // Erst anlegen; gibt es das Gerät schon (409), die Zeile ändern
+            var (_, resp) = try await URLSession.shared.data(for: request("POST", base))
+            if (resp as? HTTPURLResponse)?.statusCode == 409 {
+                var c = URLComponents(url: base, resolvingAgainstBaseURL: false)!
+                c.queryItems = [URLQueryItem(name: "token", value: "eq.\(token)")]
+                (_, resp) = try await URLSession.shared.data(for: request("PATCH", c.url!))
+            }
             if let http = resp as? HTTPURLResponse, http.statusCode >= 300 {
                 lastError = "Server antwortete mit \(http.statusCode)"
             } else {
