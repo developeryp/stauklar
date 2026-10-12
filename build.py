@@ -965,9 +965,10 @@ def road_page(road, d, near):
   {seg("w", [("heute", "Heute"), ("morgen", "Morgen"), ("woche", "7 Tage"), ("alle", "Alles")], default_w)}
   {seg("d", dir_opts, "") if len(dir_opts) > 2 else ''}
   <button type="button" class="locate" id="locate"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M14.3 1.7 1.9 6.6c-.7.3-.6 1.3.1 1.5l5 1.4 1.4 5c.2.7 1.2.8 1.5.1l4.9-12.4c.3-.7-.4-1.4-1.1-1.1z" fill="currentColor"/></svg><span class="lbl">In meiner Nähe</span></button>
+  </div>
+  <div class="ctl-row legend chips" id="sevf" role="group" aria-label="Nach Art filtern">{''.join(f'<button type="button" class="chip" aria-pressed="true" data-sev="{k}"><i class="sw {k}"></i>{t}</button>' for k, t in SEV_CHIPS)}
   <label class="find"><span class="sr">Ort oder Abschnitt suchen</span><input id="find" type="search" placeholder="Stadt oder Anschlussstelle, z. B. {e((places_of(items[0]['title']) or ['Kassel'])[0]) if items else 'Kassel'}" autocomplete="off"></label>
   </div>
-  <div class="ctl-row legend chips" id="sevf" role="group" aria-label="Nach Art filtern">{''.join(f'<button type="button" class="chip" aria-pressed="true" data-sev="{k}"><i class="sw {k}"></i>{t}</button>' for k, t in SEV_CHIPS)}</div>
 </div></div>
 
 <div class="split" data-road="{e(road)}" data-ax="{e(json.dumps(d['ax'])) if d['ax'] else ''}" data-labels="{e(json.dumps(labels, ensure_ascii=False))}">

@@ -77,6 +77,14 @@
     flyTo(lat, lon, zoom = 9.3) { AB._center = { lat, lon, zoom }; if (map) map.flyTo({ center: [lon, lat], zoom, duration: reduce ? 0 : 900 }); },
   };
 
+  // Höhe der klebenden Filterleiste messen (eine oder zwei Zeilen) → Karte und Sprungziele rücken passend darunter
+  const bar = $('#controls');
+  if (bar) {
+    const setH = () => document.documentElement.style.setProperty('--ctrl-h', bar.offsetHeight + 'px');
+    setH();
+    if (window.ResizeObserver) new ResizeObserver(setH).observe(bar);
+  }
+
   const split = $('.split');
   const route = $('#route');
   const road = split && split.dataset.road;
@@ -316,7 +324,9 @@
       apply(false);
     }
     $('details', li).open = true;
-    li.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+    // Kopf der Meldung direkt unter die klebende Filterleiste, nicht mittig (lange Karten rutschten sonst unter die Leiste)
+    const barH = bar ? bar.offsetHeight : 0;
+    window.scrollTo({ top: li.getBoundingClientRect().top + scrollY - barH - 12, behavior: reduce ? 'auto' : 'smooth' });
     li.classList.add('flash');
     setTimeout(() => li.classList.remove('flash'), 1600);
   }
