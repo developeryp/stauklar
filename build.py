@@ -710,7 +710,7 @@ def stop(g, labels, href=None):
             rows.append(("Details", d["info"].replace("Maximale Durchfahrtsbreite", "Breite").replace("Max. ", "max. ").replace(" | ", " · ")))
     if g["project"]:
         rows.append(("Originalmeldung", g["project"]))
-    return f"""<li class="stop sev-{g['sev']}" id="{g['id']}" data-t="{g['t']:.2f}" data-d="{' '.join(g['d'])}" data-w="{tokens}" data-q="{e(q)}" data-ll="{g['lat']:.4f},{g['lon']:.4f}">
+    return f"""<li class="stop sev-{g['sev']}" id="{g['id']}" data-m="{' '.join(g['items'])}" data-t="{g['t']:.2f}" data-d="{' '.join(g['d'])}" data-w="{tokens}" data-q="{e(q)}" data-ll="{g['lat']:.4f},{g['lon']:.4f}">
 <details><summary>
 <span class="node" aria-hidden="true"></span>
 <span class="s-main"><span class="s-when">{now_badge}{e(when)}</span><span class="s-name">{e(g['title'])}</span>

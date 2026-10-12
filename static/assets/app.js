@@ -414,14 +414,8 @@
 
       if (route) {
         apply(false);
-        // Ziel aus dem Link: Maßnahme (g…) oder Stau (w…); ältere Links nennen die Einzelmeldung (m…) → zugehörige Maßnahme
-        let target = decodeURIComponent(location.hash.slice(1));
-        if (target && !document.getElementById(target)) {
-          const f = data.features.find(f => f.properties.id === target);
-          if (f && f.properties.g) target = f.properties.g;
-        }
-        if (target && document.getElementById(target)) { openStop(target); focusOnMap(target, false); }
-        else overview();
+        // Meldung aus dem Link ist schon offen (siehe unten); hier nur noch auf der Karte zeigen
+        if (linkTarget) focusOnMap(linkTarget, false); else overview();
       } else if (el.dataset.focus) {
         // Ereignisseite: nur diese Maßnahme farbig, der Rest der Autobahn als blauer Verlauf
         visibleIds = [el.dataset.focus];
@@ -457,6 +451,24 @@
       map.on('mousemove', ev => { map.getCanvas().style.cursor = pick(ev.point) ? 'pointer' : ''; });
     });
   }
+
+  // ---------- Link auf eine Meldung (#g… / #w…, ältere Links #m…) ----------
+  // Sofort öffnen, nicht erst wenn die Karte geladen ist
+  let linkTarget = null;
+  function openFromHash() {
+    if (!route) return;
+    let t = decodeURIComponent(location.hash.slice(1));
+    if (t && !document.getElementById(t)) {
+      const li = $$('.stop[data-m]', route).find(l => l.dataset.m.split(' ').includes(t));
+      if (li) t = li.id;
+    }
+    if (!t || !document.getElementById(t)) return;
+    linkTarget = t;
+    openStop(t);
+    if (map && map.getLayer && map.getLayer('lines')) focusOnMap(t, false);
+  }
+  if (route) { apply(false); openFromHash(); }
+  window.addEventListener('hashchange', openFromHash);
 
   // ---------- Liste ↔ Karte ----------
   if (route) {
