@@ -29,12 +29,6 @@ targets:
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         NSLocationWhenInUseUsageDescription: "Stauklar zeigt dir Sperrungen und Baustellen in deiner Nähe. Dein Standort bleibt auf dem Gerät."
         ITSAppUsesNonExemptEncryption: false
-        # Übergangsweise, bis stauklar.de ein HTTPS-Zertifikat hat
-        NSAppTransportSecurity:
-          NSExceptionDomains:
-            stauklar.de:
-              NSExceptionAllowsInsecureHTTPLoads: true
-              NSIncludesSubdomains: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: de.stauklar.app
