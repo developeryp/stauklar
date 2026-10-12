@@ -92,7 +92,7 @@
   // ---------- Filter ----------
   // Dauerbaustellen ändern sich kaum: standardmäßig ausgeblendet, damit das Neue von heute oben steht
   const matches = (li, w, d, q) =>
-    li.dataset.w.split(' ').includes(w) && (!d || !li.dataset.d || li.dataset.d === d) && (!q || norm(li.dataset.q).includes(q))
+    li.dataset.w.split(' ').includes(w) && (!d || !li.dataset.d || li.dataset.d.split(' ').includes(d)) && (!q || norm(li.dataset.q).includes(q))
     && (state.dauer || !li.classList.contains('sev-dauer'))
     && (!state.near || nearLi(li, state.near.r));
   const llOf = li => { const [lat, lon] = (li.dataset.ll || '0,0').split(',').map(Number); return { lat, lon }; };
@@ -124,7 +124,7 @@
       setFilters();
       // Bei Ort/Standort auf die Treffer zoomen, sonst immer die ganze Strecke zeigen
       if (fit) {
-        if ((state.q || state.near) && ids.length) fitTo(data.features.filter(f => ids.includes(f.properties.id)));
+        if ((state.q || state.near) && ids.length) fitTo(data.features.filter(f => ids.includes(f.properties.g)));
         else if (state.near) AB.flyTo(state.near.lat, state.near.lon, 9);
         else overview();
       }
@@ -227,7 +227,7 @@
   const colorExpr = ['match', ['get', 'sev'], ...Object.entries(COLORS).flat(), '#888'];
 
   function setFilters() {
-    const base = visibleIds ? ['in', ['get', 'id'], ['literal', visibleIds]] : true;
+    const base = visibleIds ? ['in', ['get', 'g'], ['literal', visibleIds]] : true;
     map.setFilter('casing', ['all', ['!', ['has', 'pt']], base]);
     map.setFilter('lines', ['all', ['!', ['has', 'pt']], base]);
     map.setFilter('points', ['all', ['has', 'pt'], base]);
@@ -252,15 +252,15 @@
     else map.fitBounds(GERMANY, { padding: 10, duration: reduce ? 0 : 700 });
   }
   function highlight(id) {
-    if (map && map.getLayer('hl')) map.setFilter('hl', ['all', ['!', ['has', 'pt']], ['==', ['get', 'id'], id || '']]);
+    if (map && map.getLayer('hl')) map.setFilter('hl', ['all', ['!', ['has', 'pt']], ['==', ['get', 'g'], id || '']]);
   }
-  function lineOf(id) { return data.features.find(f => f.properties.id === id && !f.properties.pt); }
+  function linesOf(id) { return data.features.filter(f => f.properties.g === id && !f.properties.pt); }
 
   function focusOnMap(id, scroll) {
-    const f = lineOf(id);
-    if (!f || !map) return;
+    const fs = linesOf(id);
+    if (!fs.length || !map) return;
     if (scroll) el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
-    fitTo([f], 15);
+    fitTo(fs, 15);
     highlight(id);
   }
 
@@ -377,7 +377,7 @@
       for (const id of ['lines', 'points']) {
         map.on('click', id, ev => {
           const p = ev.features[0].properties;
-          if (route) { highlight(p.id); openStop(p.id); } else showPopup(p, ev.lngLat);
+          if (route) { highlight(p.g); openStop(p.g); } else showPopup(p, ev.lngLat);
         });
         map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
@@ -437,7 +437,7 @@
         const after = $$('.stop', route).find(x => parseFloat(x.dataset.t) > t);
         route.insertBefore(li, after || null);
         if (g) {
-          const p = { id, sev: 'live', now: 1, title, kind: 'Verkehrsmeldung', when: txt[0] || '', rank: 4 };
+          const p = { id, g: id, sev: 'live', now: 1, title, kind: 'Verkehrsmeldung', when: txt[0] || '', rank: 4 };
           feats.push({ type: 'Feature', properties: p, geometry: { type: 'LineString', coordinates: g } });
           feats.push({ type: 'Feature', properties: { ...p, pt: 1 }, geometry: { type: 'Point', coordinates: g[Math.floor(g.length / 2)] } });
         }

@@ -41,8 +41,47 @@ struct RoadDetail: Codable {
     let near: [String]
     var items: [Item]
     var warns: [Warn]
+    let groups: [Group]
     let parking: [String]
     let charging: [String]
+}
+
+/// Eine Baumaßnahme mit ihren Folgen je Fahrtrichtung (die API meldet sie als mehrere Einträge)
+struct Group: Codable, Identifiable, Hashable {
+    let id: String
+    let items: [String]
+    let title: String
+    let section: String
+    let sev: String
+    let label: String
+    let active: Bool
+    let heute: Bool
+    let woche: Bool
+    let when: String
+    let start: String?
+    let end: String?
+    let total: String?
+    let upcoming: Int
+    let dirs: [DirLine]
+    let ramps: [String]
+    let project: String
+    let t: Double
+    let d: [String]
+    let lat: Double
+    let lon: Double
+
+    var severity: Severity { Severity(rawValue: sev) ?? .dauer }
+}
+
+struct DirLine: Codable, Hashable {
+    let d: String
+    let raw: String
+    let lanes: [String]
+    let laneText: String
+    let place: String
+    let info: String
+
+    enum CodingKeys: String, CodingKey { case d, raw, lanes, laneText, place = "where", info }
 }
 
 struct Axis: Codable {
@@ -84,6 +123,7 @@ enum Severity: String, Codable, CaseIterable {
 
 struct Item: Codable, Identifiable, Hashable {
     let id: String
+    let g: String?
     let title: String
     let dir: String
     let d: String
@@ -108,7 +148,7 @@ struct Item: Codable, Identifiable, Hashable {
     let geom: [[Double]]
 
     enum CodingKeys: String, CodingKey {
-        case id, title, dir, d, t, sev, label, active, heute, woche, when, start, end, total, windows
+        case id, g, title, dir, d, t, sev, label, active, heute, woche, when, start, end, total, windows
         case place = "where"
         case info, project, lanes, laneText, lat, lon, geom
     }

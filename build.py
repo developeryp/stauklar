@@ -414,37 +414,152 @@ def enrich(it):
 
 # ---------- HTML-Bausteine ----------
 
-def stop(it, labels):
-    when = human_when(it["show"])
-    upcoming = [w for w in it["wins"] if w[1] > NOW]
-    dlab = labels.get(it["d"]) if it["d"] else None
-    dir_txt = f'{dlab["sym"]} Richtung {e(dlab["name"])}' if dlab else f"Richtung {e(arrow(it['dir']))}"
-    tokens = " ".join(k for k, on in (("heute", it["w_heute"]), ("woche", it["w_woche"]), ("geplant", not it["w_heute"]), ("alle", True)) if on)
-    graphic, lane_txt = lanes(it.get("lanes") or [])
-    q = " ".join([it["title"], it["dir"], it.get("where", ""), it.get("project", "")]).lower()
-    rows = [("Zeitraum", fwin(it["show"]))]
-    if len(upcoming) > 1:
-        rows.append(("Weitere Termine", f"{len(upcoming) - 1} weitere, bis {fdate(upcoming[-1][1])}"))
-    if it.get("total") and it["total"].date() > it["show"][1].date():
-        rows.append(("Gesamte Maßnahme bis", fdate(it["total"])))
-    if it.get("info"):
-        rows.append(("Abschnitt", it["info"].replace("Maximale Durchfahrtsbreite", "Breite").replace("Max. ", "max. ").replace(" | ", " · ")))
-    if it.get("where"):
-        rows.append(("Lage", arrow(it["where"])))
-    if it.get("project") and it["project"] != it.get("where"):
-        rows.append(("Maßnahme", it["project"]))
-    now_badge = '<span class="badge now">jetzt</span>' if it["active"] else ""
-    if it["active"]:
+# ---------- Meldungen zu einer Maßnahme zusammenfassen ----------
+# Die API meldet eine Baustelle mehrfach: je Fahrtrichtung, dazu jede gesperrte Auf-/Abfahrt.
+# Für Menschen ist das eine Baustelle mit mehreren Folgen. Darum fassen wir nach Maßnahme + Zeitfenster zusammen.
+
+RAMP_LABELS = ("Abfahrt gesperrt", "Auffahrt gesperrt", "Zufahrt gesperrt")
+
+
+def plain_place(s):
+    s = re.sub(r"\bAS\s+", "", s)
+    s = re.sub(r"\bAK\s+", "Kreuz ", s)
+    s = re.sub(r"\bAD\s+", "Dreieck ", s)
+    s = re.sub(r"(\d+)\.(\d) km", r"\1,\2 km", s)
+    return s.strip(" ,")
+
+
+def plain_where(where):
+    """Maschinentext der API → „zwischen Filandastraße und 0,9 km vor Kreuz Schöneberg“"""
+    w = arrow(where or "")
+    m = re.search(r"zwischen .+?(?= nach Abfahrt| nach Auffahrt|$)", w)
+    if m:
+        return plain_place(m.group(0))
+    return plain_place(re.sub(r"^(Von )?A\d+\w*:\s*[^,]+,\s*", "", w))
+
+
+def ramp_text(it):
+    """„Auffahrt Feuerbachstraße (aus Richtung Saarstraße) gesperrt“"""
+    w = arrow(it.get("where", ""))
+    lab = it.get("label") or ""
+    kind = lab.split()[0] if lab else "Zufahrt"
+    m = None
+    if kind == "Auffahrt":
+        m = re.search(r"Auffahrt auf die A\d+\w*:\s*([^(]+?)\s*(?:\(|nach|$)", w)
+    elif kind == "Abfahrt":
+        m = re.search(r"Abfahrt von der A\d+\w*:\s*([^(]+?)\s*(?:\(|$)", w)
+    name = plain_place(m.group(1)) if m else ""
+    m2 = re.search(r"\(aus Richtung ([^)]+)\)", w)
+    extra = f" (aus Richtung {plain_place(m2.group(1))})" if m2 else ""
+    return f"{kind} {name}{extra} gesperrt" if name else f"{kind} gesperrt"
+
+
+def nice_title(project, members):
+    t = (project or members[0]["title"]).strip()
+    t = re.sub(r"^(A\s?\d+\w*)[,:\s–-]+", "", t)
+    t = re.sub(r"^(VIA|Via)\s+\w+\s+A\d+\w*\s+", "", t)
+    # „… zwischen AS X und AS Y (km 2-3), beide FR“ → der Abschnitt steht ohnehin separat
+    t = re.split(r",?\s+zwischen\s+", t)[0]
+    t = re.sub(r",?\s*(beide FR|beide Fahrtrichtungen|bde\.? FR|FR\s+\w+|RF\s+\w+)\s*$", "", t, flags=re.I)
+    t = re.sub(r"\s*\((km|Km)[^)]*\)", "", t)
+    t = plain_place(re.sub(r"\s+", " ", t.replace("_", "/"))).strip(" ,-–")
+    return (t[:1].upper() + t[1:]) if t else members[0]["title"]
+
+
+def section_of(members):
+    names = []
+    for m in sorted(members, key=lambda x: x["t"]):
+        for pl in places_of(m["title"]):
+            if pl not in names:
+                names.append(pl)
+    if len(names) >= 2:
+        return f"{names[0]} – {names[-1]}"
+    return names[0] if names else ""
+
+
+def group_items(items):
+    buckets = {}
+    for it in items:
+        key = (re.sub(r"\s+", " ", (it.get("project") or it["title"]).lower()), it["show"][0], it["show"][1])
+        buckets.setdefault(key, []).append(it)
+    groups = []
+    for n, (key, mem) in enumerate(buckets.items()):
+        gid = f"g{n}"
+        for m in mem:
+            m["g"] = gid
+        main = [m for m in mem if (m.get("label") or "") not in RAMP_LABELS]
+        ramps = [m for m in mem if (m.get("label") or "") in RAMP_LABELS]
+        sev = max(mem, key=lambda m: SEV_RANK[m["sev"]])["sev"]
+        dirs = []
+        for d in ("minus", "plus", ""):
+            ms = [m for m in main if m["d"] == d]
+            if not ms:
+                continue
+            # bei mehreren Einträgen je Richtung den mit den meisten gesperrten Spuren zeigen
+            best = max(ms, key=lambda m: lane_counts(m.get("lanes") or [])[1])
+            dirs.append(dict(d=d, raw=arrow(best["dir"]), lanes=best.get("lanes") or [], laneText=lanes(best.get("lanes") or [])[1],
+                             where=plain_where(best.get("where", "")), info=best.get("info", "")))
+        if sev == "voll":
+            label = "Vollsperrung"
+        elif not main and ramps:
+            label = "Auffahrt/Abfahrt gesperrt" if len({r["label"] for r in ramps}) > 1 else ramps[0]["label"]
+        else:
+            label = SEV_LABEL[sev]
+        upcoming = max((len([w for w in m["wins"] if w[1] > NOW]) for m in mem), default=1)
+        total = max((m["total"] for m in mem if m.get("total")), default=None)
+        groups.append(dict(
+            id=gid, items=[m["id"] for m in mem], title=nice_title(mem[0].get("project"), mem), section=section_of(mem),
+            sev=sev, label=label, active=any(m["active"] for m in mem),
+            heute=any(m["w_heute"] for m in mem), woche=any(m["w_woche"] for m in mem),
+            show=mem[0]["show"], when=human_when(mem[0]["show"]), upcoming=upcoming, total=total,
+            dirs=dirs, ramps=[ramp_text(r) for r in ramps],
+            project=mem[0].get("project", ""), raw_titles=[m["title"] for m in mem],
+            t=sum(m["t"] for m in mem) / len(mem), d=sorted({m["d"] for m in mem if m["d"]}),
+            lat=mem[0]["lat"], lon=mem[0]["lon"], geom=[g for m in mem for g in (m.get("geom") or [])],
+        ))
+    groups.sort(key=lambda g: g["t"])
+    return groups
+
+
+def stop(g, labels):
+    when = g["when"]
+    tokens = " ".join(k for k, on in (("heute", g["heute"]), ("woche", g["woche"]), ("geplant", not g["heute"]), ("alle", True)) if on)
+    q = " ".join([g["title"], g["section"], g["project"]] + g["raw_titles"] + [d["raw"] for d in g["dirs"]]).lower()
+    now_badge = '<span class="badge now">jetzt</span>' if g["active"] else ""
+    if g["active"]:
         when = when.removeprefix("jetzt ")
-    return f"""<li class="stop sev-{it['sev']}" id="{it['id']}" data-t="{it['t']:.2f}" data-d="{it['d']}" data-w="{tokens}" data-q="{e(q)}" data-ll="{it['lat']:.4f},{it['lon']:.4f}">
+    lines = []
+    for d in g["dirs"]:
+        lab = labels.get(d["d"]) if d["d"] else None
+        name = f'{lab["sym"]} {e(lab["name"])}' if lab else e(d["raw"] or "beide Richtungen")
+        graphic, _ = lanes(d["lanes"])
+        txt = e(d["laneText"]) if d["laneText"] else ("gesperrt" if g["sev"] == "voll" else "Baustelle")
+        lines.append(f'<span class="dirline"><span class="dl">{name}</span>{graphic}<span class="dt">{txt}</span></span>')
+    for r in g["ramps"]:
+        lines.append(f'<span class="dirline ramp"><span class="dl">{e(r.replace(" gesperrt", ""))}</span><span class="dt closed">gesperrt</span></span>')
+    rows = [("Zeitraum", fwin(g["show"]))]
+    if g["upcoming"] > 1:
+        rows.append(("Weitere Termine", f"{g['upcoming'] - 1} weitere"))
+    if g["total"] and g["total"].date() > g["show"][1].date():
+        rows.append(("Gesamte Maßnahme bis", fdate(g["total"])))
+    for d in g["dirs"]:
+        lab = labels.get(d["d"]) if d["d"] else None
+        name = f'{lab["sym"]} {lab["name"]}' if lab else (d["raw"] or "Lage")
+        if d["where"]:
+            rows.append((name, d["where"]))
+        if d["info"]:
+            rows.append(("Details", d["info"].replace("Maximale Durchfahrtsbreite", "Breite").replace("Max. ", "max. ").replace(" | ", " · ")))
+    if g["project"]:
+        rows.append(("Originalmeldung", g["project"]))
+    return f"""<li class="stop sev-{g['sev']}" id="{g['id']}" data-t="{g['t']:.2f}" data-d="{' '.join(g['d'])}" data-w="{tokens}" data-q="{e(q)}" data-ll="{g['lat']:.4f},{g['lon']:.4f}">
 <details><summary>
 <span class="node" aria-hidden="true"></span>
-<span class="s-main"><span class="s-when">{now_badge}{e(when)}</span><span class="s-name">{e(it['title'])}</span>
-<span class="s-sub">{it.get('label') or SEV_LABEL[it['sev']]} · {dir_txt}</span>
-{f'<span class="s-lanes">{graphic}<span>{e(lane_txt)}</span></span>' if graphic else ''}</span>
+<span class="s-main"><span class="s-when">{now_badge}{e(when)}</span><span class="s-name">{e(g['title'])}</span>
+<span class="s-sub">{e(g['label'])}{(' · ' + e(g['section'])) if g['section'] and g['section'] != g['title'] else ''}</span>
+<span class="dirs">{''.join(lines)}</span></span>
 <span class="chev" aria-hidden="true"></span>
 </summary>
-<div class="s-body"><dl>{''.join(f'<div><dt>{k}</dt><dd>{e(v)}</dd></div>' for k, v in rows)}</dl>{maplink(it['id'], it['geom'])}</div>
+<div class="s-body"><dl>{''.join(f'<div><dt>{e(k)}</dt><dd>{e(v)}</dd></div>' for k, v in rows)}</dl>{maplink(g['id'], g['geom'])}</div>
 </details></li>"""
 
 
@@ -467,7 +582,7 @@ def features(items, warns, road=None, ids=None):
         if not g:
             continue
         live = it in warns
-        props = dict(id=it["id"], sev="live" if live else it["sev"], now=1 if live or it.get("active") else 0,
+        props = dict(id=it["id"], g=it.get("g", it["id"]), sev="live" if live else it["sev"], now=1 if live or it.get("active") else 0,
                      title=it["title"], kind=SEV_LABEL["live"] if live else (it.get("label") or SEV_LABEL[it["sev"]]),
                      when=(it["text"][0] if live and it["text"] else "" if live else human_when(it["show"])))
         if road:
@@ -607,7 +722,8 @@ def road_page(road, d, near):
     n_dauer = sum(i["sev"] == "dauer" for i in today)
     default_w = "heute" if today or warns else ("woche" if week else "alle")
 
-    stops = sorted([(i["t"], stop(i, labels)) for i in items] + [(w["t"], warn_stop(w, labels)) for w in warns], key=lambda x: x[0])
+    groups = d["groups"]
+    stops = sorted([(gr["t"], stop(gr, labels)) for gr in groups] + [(w["t"], warn_stop(w, labels)) for w in warns], key=lambda x: x[0])
     route = "".join(h for _, h in stops)
 
     dir_opts = [("", "Beide Richtungen")]
@@ -689,6 +805,15 @@ def road_page(road, d, near):
 </div>
 
 <div class="after">
+<details class="more glossar"><summary>Was bedeuten die Begriffe?</summary>
+<dl class="gl">
+<div><dt><i class="sw voll"></i>Vollsperrung</dt><dd>In dieser Richtung geht nichts mehr durch. Umleitung nötig.</dd></div>
+<div><dt><i class="sw sperr"></i>Sperrung</dt><dd>Eine Auf- oder Abfahrt oder ein kurzer Abschnitt ist dicht, meist nachts für wenige Stunden.</dd></div>
+<div><dt><i class="sw kurz"></i>Kurzfristige Baustelle</dt><dd>Höchstens drei Tage, oft nur eine Nacht. Spuren sind verengt oder gesperrt, es geht aber durch.</dd></div>
+<div><dt><i class="sw dauer"></i>Dauerbaustelle</dt><dd>Läuft Wochen bis Jahre. Man kennt sie meist schon, darum ist sie standardmäßig ausgeblendet.</dd></div>
+<div><dt><i class="sw live"></i>Stau oder Gefahr</dt><dd>Aktuelle Meldung der Autobahn GmbH, alle zwei Minuten neu geladen.</dd></div>
+<div><dt>Spurgrafik</dt><dd>Zeigt die Fahrbahn in Fahrtrichtung: Pfeil = Spur frei, rot-weiß = Spur gesperrt, schmaler Streifen = Standstreifen, gelbe Linie = Mittelstreifen.</dd></div>
+</dl></details>
 <aside class="app-teaser">
   <div><h2>Sag mir einfach Bescheid, wenn's auf meiner Strecke zu ist.</h2>
   <p>Bald als App: Strecke auf der {e(road)} einmal festlegen, morgens eine Nachricht bekommen, wenn dort heute gesperrt wird.</p></div>
@@ -836,7 +961,7 @@ def iso(d):
 def api_item(it, labels):
     upcoming = [w for w in it["wins"] if w[1] > NOW][:12]
     return dict(
-        id=it["id"], title=it["title"], dir=arrow(it["dir"]), d=it["d"], t=round(it["t"], 2),
+        id=it["id"], g=it.get("g", it["id"]), title=it["title"], dir=arrow(it["dir"]), d=it["d"], t=round(it["t"], 2),
         sev=it["sev"], label=it.get("label") or SEV_LABEL[it["sev"]], active=bool(it["active"]),
         heute=bool(it["w_heute"]), woche=bool(it["w_woche"]), when=human_when(it["show"]),
         start=iso(it["show"][0]), end=iso(it["show"][1]), total=iso(it.get("total")),
@@ -845,6 +970,14 @@ def api_item(it, labels):
         lanes=it.get("lanes") or [], laneText=lanes(it.get("lanes") or [])[1],
         lat=round(it["lat"], 5), lon=round(it["lon"], 5), geom=it.get("geom") or [],
     )
+
+
+def api_group(g):
+    return dict(id=g["id"], items=g["items"], title=g["title"], section=g["section"], sev=g["sev"], label=g["label"],
+                active=g["active"], heute=g["heute"], woche=g["woche"], when=human_when(g["show"]),
+                start=iso(g["show"][0]), end=iso(g["show"][1]), total=iso(g["total"]), upcoming=g["upcoming"],
+                dirs=[dict(d=x["d"], raw=x["raw"], lanes=x["lanes"], laneText=x["laneText"], where=x["where"], info=x["info"]) for x in g["dirs"]],
+                ramps=g["ramps"], project=g["project"], t=round(g["t"], 2), d=g["d"], lat=round(g["lat"], 5), lon=round(g["lon"], 5))
 
 
 def api_warn(w):
@@ -872,6 +1005,7 @@ def write_api(roads, data, punkte):
             id=r, stand=stand, status=st, statusText=st_txt, lage=lage(r, d["items"], d["warns"]), **counts,
             axis=d["ax"], labels=d["labels"], ends=ends, near=near,
             items=[api_item(i, d["labels"]) for i in d["items"]], warns=[api_warn(w) for w in d["warns"]],
+            groups=[api_group(g) for g in d["groups"]],
             parking=d["parking"], charging=d["charging"],
         ), ensure_ascii=False, separators=(",", ":")))
     (api / "roads.json").write_text(json.dumps(dict(stand=stand, roads=overview), ensure_ascii=False, separators=(",", ":")))
@@ -896,7 +1030,7 @@ def main():
             w["id"] = f"w{n}"
         ax, labels = assign_directions(r, items, warns)
         parking, charging = build_services(r)
-        data[r] = dict(items=items, warns=warns, parking=parking, charging=charging, ax=ax, labels=labels, c=centroid(items, warns))
+        data[r] = dict(items=items, warns=warns, groups=group_items(items), parking=parking, charging=charging, ax=ax, labels=labels, c=centroid(items, warns))
     # Autobahnen ohne jede Meldung bekommen keine eigene Seite (wäre für Google eine „leere“ Seite)
     roads = [r for r in roads if data[r]["items"] or data[r]["warns"] or data[r]["parking"]]
     places = {}

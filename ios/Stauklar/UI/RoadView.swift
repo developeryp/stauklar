@@ -49,7 +49,7 @@ struct RoadView: View {
             if let live = await Live.warnings(for: roadID, axis: d.axis) { d.warns = live }
             detail = d
             showDauer = d.voll == 0 && d.kurz == 0 && d.warns.isEmpty
-            if visible(d).isEmpty && when == .heute { when = d.items.contains { $0.woche } ? .woche : .alle }
+            if visible(d).isEmpty && when == .heute { when = d.groups.contains { $0.woche } ? .woche : .alle }
             fitAll(d)
         } catch {
             failed = true
@@ -58,23 +58,29 @@ struct RoadView: View {
 
     // MARK: - Filter
 
-    private func matches(_ it: Item, _ d: RoadDetail) -> Bool {
-        let w = Self.inWindow(it, when)
-        return w && (dir.isEmpty || it.d.isEmpty || it.d == dir) && (showDauer || it.severity != .dauer)
+    private func matches(_ g: Group, _ d: RoadDetail) -> Bool {
+        let w = Self.inWindow(g, when)
+        return w && (dir.isEmpty || g.d.isEmpty || g.d.contains(dir)) && (showDauer || g.severity != .dauer)
+    }
+
+    /// Einzelmeldungen, die zu den sichtbaren Maßnahmen gehören (für die Karte)
+    private func visibleItems(_ d: RoadDetail) -> [Item] {
+        let ids = Set(visible(d).flatMap(\.items))
+        return d.items.filter { ids.contains($0.id) }
     }
 
     /// Heute = gilt bis morgen früh, 7 Tage = beginnt innerhalb einer Woche, Geplant = beginnt erst nach heute
-    private static func inWindow(_ it: Item, _ w: When) -> Bool {
+    private static func inWindow(_ g: Group, _ w: When) -> Bool {
         switch w {
-        case .heute: return it.heute
-        case .woche: return it.woche
-        case .geplant: return !it.heute
+        case .heute: return g.heute
+        case .woche: return g.woche
+        case .geplant: return !g.heute
         case .alle: return true
         }
     }
 
-    private func visible(_ d: RoadDetail) -> [Item] {
-        let list = d.items.filter { matches($0, d) }.sorted { $0.t < $1.t }
+    private func visible(_ d: RoadDetail) -> [Group] {
+        let list = d.groups.filter { matches($0, d) }.sorted { $0.t < $1.t }
         return dir == "minus" ? list.reversed() : list
     }
 
@@ -85,19 +91,20 @@ struct RoadView: View {
     }
 
     private func count(_ w: When, _ d: RoadDetail) -> Int {
-        d.items.filter { it in
-            let m = Self.inWindow(it, w)
-            return m && (dir.isEmpty || it.d.isEmpty || it.d == dir) && (showDauer || it.severity != .dauer)
+        d.groups.filter { g in
+            let m = Self.inWindow(g, w)
+            return m && (dir.isEmpty || g.d.isEmpty || g.d.contains(dir)) && (showDauer || g.severity != .dauer)
         }.count + (w == .geplant ? 0 : d.warns.count)
     }
 
     // MARK: - Inhalt
 
     private func content(_ d: RoadDetail) -> some View {
-        let items = visible(d)
+        let groups = visible(d)
+        let items = visibleItems(d)
         let warns = visibleWarns(d)
-        // Meldungen und Staus gemeinsam in Streckenreihenfolge
-        let rows: [Row] = (items.map { Row.item($0) } + warns.map { Row.warn($0) })
+        // Maßnahmen und Staus gemeinsam in Streckenreihenfolge
+        let rows: [Row] = (groups.map { Row.group($0) } + warns.map { Row.warn($0) })
             .sorted { dir == "minus" ? $0.t > $1.t : $0.t < $1.t }
         let ends = d.ends.count == 2 ? (dir == "minus" ? (d.ends[1], d.ends[0]) : (d.ends[0], d.ends[1])) : nil
 
@@ -114,7 +121,7 @@ struct RoadView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(rows) { row in
                             switch row {
-                            case .item(let it): StopRow(item: it, label: dirText(it.d, it.dir, d), expanded: binding(it.id)) { focus(it.id, it.coordinates) }
+                            case .group(let g): GroupRow(group: g, labels: d.labels, expanded: binding(g.id)) { focus(g.id, d.items.filter { g.items.contains($0.id) }.flatMap(\.coordinates)) }
                             case .warn(let w): WarnRow(warn: w, label: dirText(w.d, w.dir, d), expanded: binding(w.id)) { focus(w.id, w.coordinates) }
                             }
                         }
@@ -288,9 +295,9 @@ struct RoadView: View {
     // MARK: - Helfer
 
     private enum Row: Identifiable {
-        case item(Item), warn(Warn)
-        var id: String { switch self { case .item(let i): return i.id; case .warn(let w): return w.id } }
-        var t: Double { switch self { case .item(let i): return i.t; case .warn(let w): return w.t } }
+        case group(Group), warn(Warn)
+        var id: String { switch self { case .group(let g): return g.id; case .warn(let w): return w.id } }
+        var t: Double { switch self { case .group(let g): return g.t; case .warn(let w): return w.t } }
     }
 
     private func dirText(_ d: String, _ raw: String, _ detail: RoadDetail) -> String {
@@ -317,7 +324,7 @@ struct RoadView: View {
     }
 
     private func fitVisible(_ d: RoadDetail) {
-        let coords = visible(d).flatMap(\.coordinates) + visibleWarns(d).flatMap(\.coordinates)
+        let coords = visibleItems(d).flatMap(\.coordinates) + visibleWarns(d).flatMap(\.coordinates)
         guard !coords.isEmpty else { return }
         withAnimation { camera = .region(region(for: coords, minSpan: 0.3)) }
     }
@@ -494,12 +501,12 @@ struct RoadMap: View {
             ForEach(items) { it in
                 if it.geom.count > 1 {
                     MapPolyline(coordinates: it.coordinates)
-                        .stroke(Theme.color(it.severity).opacity(it.active ? 1 : 0.6), style: StrokeStyle(lineWidth: selected == it.id ? 9 : 5, lineCap: .round, lineJoin: .round))
+                        .stroke(Theme.color(it.severity).opacity(it.active ? 1 : 0.6), style: StrokeStyle(lineWidth: selected == (it.g ?? it.id) ? 9 : 5, lineCap: .round, lineJoin: .round))
                 }
                 Annotation("", coordinate: it.mid) {
-                    Circle().fill(Theme.color(it.severity)).frame(width: selected == it.id ? 16 : 11, height: selected == it.id ? 16 : 11)
+                    Circle().fill(Theme.color(it.severity)).frame(width: selected == (it.g ?? it.id) ? 16 : 11, height: selected == (it.g ?? it.id) ? 16 : 11)
                         .overlay(Circle().stroke(.white, lineWidth: 2))
-                        .onTapGesture { onSelect(it.id) }
+                        .onTapGesture { onSelect(it.g ?? it.id) }
                 }
             }
             ForEach(warns) { w in
@@ -515,5 +522,102 @@ struct RoadMap: View {
             }
         }
         .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
+    }
+}
+
+/// Eine Maßnahme in der Streckenliste: je Fahrtrichtung eine Zeile, gesperrte Auf-/Abfahrten als Stichpunkte
+struct GroupRow: View {
+    let group: Group
+    let labels: [String: DirLabel]
+    @Binding var expanded: Bool
+    let onMap: () -> Void
+
+    private func dirName(_ d: DirLine) -> String {
+        if let l = labels[d.d] { return "\(l.sym) \(l.name)" }
+        return d.raw.isEmpty ? "Beide Richtungen" : d.raw
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            Circle().fill(Theme.color(group.severity)).frame(width: 14, height: 14)
+                .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 3))
+                .padding(.leading, 4).padding(.top, 20)
+            VStack(alignment: .leading, spacing: 0) {
+                Button { withAnimation(.snappy) { expanded.toggle() } } label: {
+                    HStack(alignment: .center, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                if group.active { Badge(text: "jetzt", color: Theme.color(group.severity)) }
+                                Text(group.active ? group.when.replacingOccurrences(of: "jetzt ", with: "") : group.when)
+                                    .font(.caption.weight(.semibold)).foregroundStyle(Theme.color(group.severity))
+                            }
+                            Text(group.title).font(.body.weight(.semibold)).multilineTextAlignment(.leading)
+                            Text(group.section.isEmpty || group.section == group.title ? group.label : "\(group.label) · \(group.section)")
+                                .font(.caption).foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 5) {
+                                ForEach(Array(group.dirs.enumerated()), id: \.offset) { _, d in
+                                    HStack(spacing: 8) {
+                                        Text(dirName(d)).font(.caption.weight(.semibold)).frame(minWidth: 86, alignment: .leading)
+                                        if !d.lanes.isEmpty { LaneGraphic(symbols: d.lanes) }
+                                        Text(d.laneText.isEmpty ? (group.severity == .voll ? "gesperrt" : "Baustelle") : d.laneText)
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    }
+                                }
+                                ForEach(group.ramps, id: \.self) { r in
+                                    HStack(spacing: 8) {
+                                        Text(r.replacingOccurrences(of: " gesperrt", with: "")).font(.caption.weight(.medium))
+                                        Text("gesperrt").font(.caption.weight(.semibold)).foregroundStyle(Theme.color(.sperr))
+                                    }
+                                }
+                            }
+                            .padding(.top, 4)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.down").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                            .rotationEffect(.degrees(expanded ? 180 : 0))
+                    }
+                    .padding(14)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                if expanded {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Divider()
+                        detail("Zeitraum", windowText)
+                        if group.upcoming > 1 { detail("Weitere Termine", "\(group.upcoming - 1) weitere") }
+                        if let total = group.total, let d = ISO8601DateFormatter().date(from: total), total != group.end {
+                            detail("Gesamte Maßnahme bis", d.formatted(date: .numeric, time: .omitted))
+                        }
+                        ForEach(Array(group.dirs.enumerated()), id: \.offset) { _, d in
+                            if !d.place.isEmpty { detail(dirName(d), d.place) }
+                        }
+                        if !group.project.isEmpty { detail("Originalmeldung", group.project) }
+                        Button("Auf der Karte", action: onMap)
+                            .font(.subheadline.weight(.medium))
+                            .buttonStyle(.bordered).buttonBorderShape(.capsule)
+                            .padding(.top, 2)
+                    }
+                    .padding(.horizontal, 14).padding(.bottom, 14)
+                    .transition(.opacity)
+                }
+            }
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.leading, 12)
+        }
+    }
+
+    private var windowText: String {
+        let f = ISO8601DateFormatter()
+        guard let s = group.start.flatMap(f.date(from:)), let e = group.end.flatMap(f.date(from:)) else { return group.when }
+        let day = Date.FormatStyle().day(.twoDigits).month(.twoDigits).year()
+        let time = Date.FormatStyle().hour(.twoDigits(amPM: .omitted)).minute()
+        return "\(s.formatted(day)) \(s.formatted(time)) – \(e.formatted(day)) \(e.formatted(time)) Uhr"
+    }
+
+    private func detail(_ k: String, _ v: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(k).font(.caption).foregroundStyle(.secondary)
+            Text(v).font(.subheadline)
+        }
     }
 }
