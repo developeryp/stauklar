@@ -212,6 +212,12 @@ struct City: Codable, Identifiable, Hashable {
     var coordinate: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: lat, longitude: lon) }
 }
 
+/// Autobahn-Seite mit einer bestimmten Meldung, die aufgeklappt und auf der Karte markiert wird
+struct RoadTarget: Hashable {
+    let road: String
+    let item: String?
+}
+
 /// Ziel der Umkreisansicht: eigener Standort oder ein Ort
 enum NearbyTarget: Hashable {
     case me

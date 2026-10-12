@@ -38,6 +38,7 @@ struct NearbyView: View {
             .padding(.horizontal, 18)
             .padding(.bottom, 30)
         }
+        .navigationDestination(for: RoadTarget.self) { RoadView(roadID: $0.road, focusItem: $0.item) }
         .navigationTitle(name.isEmpty ? "In der Nähe" : "Rund um \(name)")
         .navigationBarTitleDisplayMode(.large)
         .task { await locate() }
@@ -87,7 +88,7 @@ struct NearbyView: View {
 
             VStack(spacing: 8) {
                 ForEach(relevant.prefix(40), id: \.point.key) { h in
-                    NavigationLink(value: h.point.road) { NearbyRow(point: h.point, km: h.km) }
+                    NavigationLink(value: RoadTarget(road: h.point.road, item: h.point.id)) { NearbyRow(point: h.point, km: h.km) }
                 }
             }
 
@@ -95,7 +96,7 @@ struct NearbyView: View {
                 DisclosureGroup {
                     VStack(spacing: 8) {
                         ForEach(dauer.prefix(60), id: \.point.key) { h in
-                            NavigationLink(value: h.point.road) { NearbyRow(point: h.point, km: h.km) }
+                            NavigationLink(value: RoadTarget(road: h.point.road, item: h.point.id)) { NearbyRow(point: h.point, km: h.km) }
                         }
                     }
                     .padding(.top, 8)

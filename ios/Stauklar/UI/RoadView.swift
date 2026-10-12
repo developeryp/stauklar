@@ -4,6 +4,8 @@ import MapKit
 /// Eine Autobahn: Lagebericht, Karte, Filter und die Meldungen in Streckenreihenfolge.
 struct RoadView: View {
     let roadID: String
+    /// Meldung (Item- oder Stau-ID), die beim Öffnen aufgeklappt und auf der Karte gezeigt wird
+    var focusItem: String? = nil
     @EnvironmentObject private var store: Store
     @State private var detail: RoadDetail?
     @State private var failed = false
@@ -59,6 +61,7 @@ struct RoadView: View {
             showDauer = d.voll == 0 && d.kurz == 0 && d.warns.isEmpty
             if visible(d).isEmpty && when == .heute { when = d.groups.contains { $0.woche } ? .woche : .alle }
             fitAll(d)
+            if let fi = focusItem { openItem(fi, in: d) }
         } catch {
             failed = true
         }
@@ -335,6 +338,23 @@ struct RoadView: View {
 
     private func binding(_ id: String) -> Binding<Bool> {
         Binding(get: { expanded.contains(id) }, set: { on in if on { expanded.insert(id) } else { expanded.remove(id) } })
+    }
+
+    /// Aus Startseite oder Umkreis kommend: zugehörige Maßnahme finden, Filter passend setzen, aufklappen, hinzoomen
+    private func openItem(_ itemID: String, in d: RoadDetail) {
+        let gid = d.groups.first { $0.items.contains(itemID) }?.id ?? (d.warns.contains { $0.id == itemID } ? itemID : nil)
+        guard let gid else { return }
+        if let g = d.groups.first(where: { $0.id == gid }) {
+            if !Self.inWindow(g, when) { when = g.heute ? .heute : (g.woche ? .woche : .alle) }
+            if g.severity == .dauer { showDauer = true }
+            if !dir.isEmpty && !g.d.isEmpty && !g.d.contains(dir) { dir = "" }
+        }
+        selected = gid
+        expanded.insert(gid)
+        let members = Set(d.groups.first(where: { $0.id == gid })?.items ?? [])
+        let coords = d.items.filter { members.contains($0.id) }.flatMap(\.coordinates) + d.warns.filter { $0.id == gid }.flatMap(\.coordinates)
+        if !coords.isEmpty { camera = .region(region(for: coords, minSpan: 0.03)) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { scrollTarget = gid }
     }
 
     private func select(_ id: String) {

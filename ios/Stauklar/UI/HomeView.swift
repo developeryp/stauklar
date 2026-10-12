@@ -7,6 +7,9 @@ struct HomeView: View {
     @State private var query = ""
     @State private var path = NavigationPath()
     @State private var camera: MapCameraPosition = .region(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 51.2, longitude: 10.4), span: MKCoordinateSpan(latitudeDelta: 8.2, longitudeDelta: 8.2)))
+    /// Meter pro Bildschirmpunkt beim aktuellen Zoom, damit die Punkte immer gleich groß bleiben
+    @State private var metersPerPoint = 8.2 * 110_570 / 250
+    private let mapHeight: CGFloat = 250
 
     private let columns = [GridItem(.adaptive(minimum: 76), spacing: 8)]
 
@@ -18,6 +21,7 @@ struct HomeView: View {
             .background(Color(.systemBackground))
             .navigationTitle("Stauklar")
             .navigationDestination(for: String.self) { RoadView(roadID: $0) }
+            .navigationDestination(for: RoadTarget.self) { RoadView(roadID: $0.road, focusItem: $0.item) }
             .navigationDestination(for: NearbyTarget.self) { NearbyView(target: $0) }
             .searchable(text: $query, prompt: "Autobahn oder Stadt")
             .refreshable { await store.load() }
@@ -82,26 +86,39 @@ struct HomeView: View {
                 Map(position: $camera, interactionModes: [.pan, .zoom]) {
                     UserAnnotation()
                     ForEach(pts) { p in
-                        MapCircle(center: p.coordinate, radius: p.severity == .kurz ? 5500 : 8000)
-                            .foregroundStyle(Theme.color(p.severity).opacity(0.9))
+                        // Radius in Metern läuft mit dem Zoom mit → Punkte bleiben immer ca. 4–5 Bildschirmpunkte groß
+                        MapCircle(center: p.coordinate, radius: metersPerPoint * (p.severity == .kurz ? 3.5 : 4.5))
+                            .foregroundStyle(Theme.color(p.severity).opacity(0.95))
                             .stroke(.white, lineWidth: 1)
                     }
                 }
                 .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
+                .onMapCameraChange(frequency: .continuous) { ctx in
+                    metersPerPoint = ctx.region.span.latitudeDelta * 110_570 / Double(mapHeight)
+                }
                 .onTapGesture { pt in
-                    if let c = proxy.convert(pt, from: .local) {
+                    // Nächster Punkt im Umkreis von 18 Bildschirmpunkten → genau diese Meldung öffnen, sonst Umkreis dort
+                    var best: (Point, CGFloat)?
+                    for p in pts {
+                        guard let sp = proxy.convert(p.coordinate, to: .local) else { continue }
+                        let d = hypot(sp.x - pt.x, sp.y - pt.y)
+                        if d < 18, best == nil || d < best!.1 { best = (p, d) }
+                    }
+                    if let hit = best?.0 {
+                        path.append(RoadTarget(road: hit.road, item: hit.id))
+                    } else if let c = proxy.convert(pt, from: .local) {
                         path.append(NearbyTarget.place(name: "diese Stelle", lat: c.latitude, lon: c.longitude))
                     }
                 }
             }
-            .frame(height: 250)
+            .frame(height: mapHeight)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             HStack(spacing: 14) {
                 legend(.voll, "Vollsperrung"); legend(.sperr, "Sperrung"); legend(.kurz, "kurzfristig"); legend(.live, "Stau")
                 Spacer()
             }
             .font(.caption).foregroundStyle(.secondary)
-            Text("Tipp auf eine Stelle der Karte, um zu sehen, was dort im Umkreis los ist. Zum Scrollen neben der Karte wischen.")
+            Text("Tipp auf einen Punkt, um die Meldung zu öffnen, oder auf eine freie Stelle für den Umkreis dort. Zum Scrollen neben der Karte wischen.")
                 .font(.caption).foregroundStyle(.tertiary)
         }
     }
