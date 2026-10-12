@@ -67,9 +67,21 @@ struct DriveView: View {
             // Alle heutigen Meldungen der Autobahn; was voraus liegt kräftig, der Rest gedämpft
             ForEach(model.mapItems) { it in
                 if it.geom.count > 1 {
-                    let ahead = model.aheadItems.contains(it.id)
+                    // Ohne bekannte Richtung ist noch nichts „voraus“: dann alles kräftig zeichnen
+                    let ahead = model.aheadItems.isEmpty || model.aheadItems.contains(it.id)
                     MapPolyline(coordinates: it.coordinates)
                         .stroke(Theme.color(it.severity).opacity(ahead ? 1 : 0.35), style: StrokeStyle(lineWidth: ahead ? 7 : 5, lineCap: .round, lineJoin: .round))
+                }
+            }
+            // Nah-Ansicht: 3D-Gebäude verdecken Linien am Boden, deshalb zusätzlich ein Marker am Anfang jeder Meldung voraus
+            if closeView {
+                ForEach(model.mapItems.filter { model.aheadItems.contains($0.id) && $0.geom.count > 1 }) { it in
+                    Annotation("", coordinate: model.start(of: it)) {
+                        Image(systemName: it.severity == .dauer || it.severity == .kurz ? "cone.fill" : "xmark.octagon.fill")
+                            .font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
+                            .padding(7).background(Theme.color(it.severity), in: Circle())
+                            .overlay(Circle().stroke(.white, lineWidth: 2))
+                    }
                 }
             }
             ForEach(model.mapWarns) { w in
@@ -85,14 +97,19 @@ struct DriveView: View {
         .onChange(of: model.cameraTick) { _, _ in
             guard following, let here = model.location?.coordinate else { return }
             // Ohne erkannte Autobahn: weit raus, damit die Meldungen der Umgebung zu sehen sind
-            guard model.roadID != nil, model.message == nil else {
+            guard model.roadID != nil else {
                 withAnimation(.linear(duration: 1)) { camera = .camera(MapCamera(centerCoordinate: here, distance: 60_000, heading: 0, pitch: 0)) }
                 return
             }
-            // Nah: Blickpunkt ca. 200 m voraus, damit das Auto unten im Bild steht wie bei einer Navigation
-            let c = closeView ? here.moved(meters: 200, heading: model.heading) : here
+            // Autobahn erkannt, Richtung noch nicht (z. B. im Stand): normale Übersicht nach Norden
+            guard model.message == nil else {
+                withAnimation(.linear(duration: 1)) { camera = .camera(MapCamera(centerCoordinate: here, distance: 6500, heading: 0, pitch: 0)) }
+                return
+            }
+            // Blickpunkt voraus, damit das Auto unten im Bild steht und mehr Strecke vor dir zu sehen ist
+            let c = here.moved(meters: closeView ? 200 : 1800, heading: model.heading)
             withAnimation(.linear(duration: 1)) {
-                camera = .camera(MapCamera(centerCoordinate: c, distance: closeView ? 550 : 6500, heading: model.heading, pitch: closeView ? 65 : 0))
+                camera = .camera(MapCamera(centerCoordinate: c, distance: closeView ? 650 : 6500, heading: model.heading, pitch: closeView ? 50 : 0))
             }
         }
         .onChange(of: closeView) { _, _ in following = true; model.cameraTick += 1 }
@@ -345,6 +362,14 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         upcoming = list.sorted { $0.km < $1.km }
         aheadItems = Set(d.groups.filter { g in list.contains { $0.id == g.id } }.flatMap(\.items))
         stand = "Stand \(Date().formatted(date: .omitted, time: .shortened)) Uhr · \(upcoming.count) voraus"
+    }
+
+    /// Das dem Fahrer zugewandte Ende der Meldung (in Fahrtrichtung der Anfang)
+    func start(of it: Item) -> CLLocationCoordinate2D {
+        let c = it.coordinates
+        guard let axis = detail?.axis, let f = c.first, let l = c.last else { return it.coordinates.first ?? CLLocationCoordinate2D() }
+        let tf = axis.along(lon: f.longitude, lat: f.latitude), tl = axis.along(lon: l.longitude, lat: l.latitude)
+        return (dir == "plus") == (tf <= tl) ? f : l
     }
 
     private func load(_ road: String) {
