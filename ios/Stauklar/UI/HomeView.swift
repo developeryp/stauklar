@@ -166,7 +166,7 @@ struct HomeView: View {
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Morgens Bescheid bekommen?").font(.headline)
-                Text("Stauklar meldet sich um 6:30 Uhr, wenn auf deinen Strecken heute etwas gesperrt ist, und sofort bei neuen Vollsperrungen.")
+                Text("Stauklar meldet sich morgens zur Wunschzeit, wenn auf deinen Strecken heute etwas gesperrt ist, und sofort bei neuen Vollsperrungen.")
                     .font(.subheadline).foregroundStyle(.secondary)
                 Button {
                     Task { await push.enable() }

@@ -4,9 +4,9 @@ Supabase-Projekt „Stauklar“ (`lcpfcgbfsibmankfwsqn`, Region Frankfurt, koste
 
 - `migrations/001_push.sql`: Tabellen `devices` (Token + Lieblingsstrecken) und `sent` (schon verschickte Meldungen),
   Funktion `get_secret()` für den Vault, Erweiterungen pg_cron und pg_net.
-- `functions/notify/index.ts`: Edge Function. Läuft alle 15 Minuten (pg_cron-Job `stauklar-notify`):
-  - sofort ein Push bei jeder neuen Vollsperrung heute auf einer Lieblingsstrecke
-  - um 06:30 Ortszeit die Morgenlage mit allen Sperrungen heute auf den eigenen Strecken
+- `functions/notify/index.ts`: Edge Function. Läuft jede Minute (pg_cron-Job `stauklar-notify`):
+  - ein Push bei jeder neuen Vollsperrung heute auf einer Lieblingsstrecke, sobald sie in den Daten auftaucht (die Daten selbst werden alle 15 Minuten neu geholt)
+  - die Morgenlage genau zur Wunschzeit des Geräts (`digest_time`, Standard 06:30 Ortszeit) mit allen Sperrungen heute auf den eigenen Strecken
 - Die App meldet ihr Push-Token und die Favoriten per REST an `devices` (anon-Schlüssel, nur Schreiben).
 
 ## Geheimnisse (Supabase Vault)

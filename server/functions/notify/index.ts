@@ -1,7 +1,7 @@
 // Stauklar Push-Server (Supabase Edge Function).
-// Läuft alle 15 Minuten per pg_cron. Zwei Aufgaben:
-//  1. Sofortmeldung: neue Vollsperrung heute auf einer Lieblingsstrecke → Push innerhalb von 15 Minuten.
-//  2. Morgenlage zur Wunschzeit des Geräts (Standard 06:30 Ortszeit): ein Push mit allen Sperrungen heute auf den eigenen Strecken.
+// Läuft jede Minute per pg_cron. Zwei Aufgaben:
+//  1. Sofortmeldung: neue Vollsperrung heute auf einer Lieblingsstrecke → Push, sobald die Daten da sind.
+//  2. Morgenlage genau zur Wunschzeit des Geräts (Standard 06:30 Ortszeit): ein Push mit allen Sperrungen heute auf den eigenen Strecken.
 // Geheimnisse (APNs-Schlüssel, Cron-Secret) liegen im Supabase Vault, abrufbar über public.get_secret().
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -99,10 +99,10 @@ Deno.serve(async (req) => {
     if (!d.roads?.length) { stats.skipped++; continue; }
     const now = localNow(d.tz);
     const digestKey = `digest/${now.date}`;
-    // Wunschzeit des Geräts (z. B. „06:30“); der Lauf alle 15 Minuten trifft das Fenster [Zeit, Zeit+15)
+    // Wunschzeit des Geräts (z. B. „06:30“): genau in dieser Minute; bis 10 Minuten Nachholfrist, falls ein Lauf ausfiel
     const [dh, dm] = (d.digest_time || "06:30").split(":").map(Number);
     const minutesNow = now.hour * 60 + now.minute, minutesWanted = (dh || 6) * 60 + (dm || 0);
-    const digestTime = force === "digest" || (minutesNow >= minutesWanted && minutesNow < minutesWanted + 15);
+    const digestTime = force === "digest" || (minutesNow >= minutesWanted && minutesNow < minutesWanted + 10);
     const newSent: string[] = [];
     const messages: { title: string; body: string; road: string }[] = [];
     const digestLines: string[] = [];
