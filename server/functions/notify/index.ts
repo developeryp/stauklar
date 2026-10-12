@@ -73,6 +73,19 @@ const closures = (r: Road) => r.items.filter((i) => i.heute && (i.sev === "voll"
 // Über den Titel, nicht die Nummer: die Nummern werden bei jedem Datenabruf neu vergeben
 const key = (r: string, i: Item) => `v/${r}/${i.title}/${i.start ?? ""}`;
 
+// „…, seit 12.10.2026, 14:05“ → Zeitpunkt (deutsche Ortszeit), sonst null
+function startedAt(line: string): number | null {
+  const m = line.match(/seit (\d{2})\.(\d{2})\.(\d{4}), (\d{2}):(\d{2})/);
+  if (!m) return null;
+  const [, dd, mm, yyyy, hh, mi] = m;
+  const guess = Date.UTC(+yyyy, +mm - 1, +dd, +hh, +mi);
+  // Versatz von Europe/Berlin zu UTC zu diesem Zeitpunkt (Sommer-/Winterzeit)
+  const p = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Berlin", hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+    .formatToParts(new Date(guess)).reduce((o, x) => ({ ...o, [x.type]: x.value }), {} as Record<string, string>);
+  const asBerlin = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute);
+  return guess - (asBerlin - guess);
+}
+
 function localNow(tz: string) {
   const parts = new Intl.DateTimeFormat("de-DE", { timeZone: tz || "Europe/Berlin", hour: "2-digit", minute: "2-digit", year: "numeric", month: "2-digit", day: "2-digit", hour12: false })
     .formatToParts(new Date()).reduce((o, p) => ({ ...o, [p.type]: p.value }), {} as Record<string, string>);
@@ -95,6 +108,23 @@ Deno.serve(async (req) => {
     jwt = await apnsToken(pem, keyId);
   } catch (e) {
     return Response.json({ ...stats, error: `APNs nicht konfiguriert: ${(e as Error).message}` }, { status: 500 });
+  }
+  // Testnachricht an alle Geräte: erste Meldung der ersten eigenen Strecke, Antippen öffnet sie
+  if (force === "test") {
+    for (const d of devices.filter((d) => d.roads?.length)) {
+      let sentOne = false;
+      for (const rid of d.roads) {
+        const r = await road(rid);
+        const g = r?.groups?.find((g) => g.heute && g.sev !== "dauer") ?? r?.groups?.[0];
+        if (!r || !g) continue;
+        const res = await push(jwt, d, `Test: ${rid} – ${g.label}`, `${g.title}, ${g.when}. Antippen öffnet die Meldung.`, rid, g.items?.[0], g.title);
+        if (res === "ok") stats.pushed++; else stats.errors++;
+        sentOne = true;
+        break;
+      }
+      if (!sentOne) stats.skipped++;
+    }
+    return Response.json(stats);
   }
   const sentRows = (await (await sb("sent?select=token,key,sent_at")).json()) as { token: string; key: string; sent_at: string }[];
   const sent = new Set(sentRows.map((s) => `${s.token}|${s.key}`));
@@ -140,11 +170,21 @@ Deno.serve(async (req) => {
         if (!sent.has(`${d.token}|${k}`)) { newSent.push(k); if (!fresh0(g.sev)) { fresh.push(`${g.label}: ${g.title}, ${g.when}`); freshItem = g.items?.[0]; freshTitle = g.title; } }
       }
       if (kinds.has("live")) {
+        // Staus kommen und gehen minütlich. Gemeldet wird nur, was wirklich gerade erst begonnen hat (≤ 30 Min.),
+        // und höchstens eine Stau-Nachricht je Autobahn und halber Stunde. Ältere Staus werden nur still gemerkt.
+        const slot = `p/live/${rid}/${Math.floor(Date.now() / 18e5)}`;
+        const quiet = sent.has(`${d.token}|${slot}`);
+        let added = false;
         for (const w of r.warns ?? []) {
           const k = `k/live/${rid}/${w.title}/${w.dir}/${w.text?.[0] ?? ""}`;
           seen(d.token, k);
-          if (!sent.has(`${d.token}|${k}`)) { newSent.push(k); if (!fresh0("live")) fresh.push(`${w.text?.[0]?.split(",")[0] || "Stau oder Gefahr"}: ${w.title}`); }
+          if (sent.has(`${d.token}|${k}`)) continue;
+          newSent.push(k);
+          const since = startedAt(w.text?.[0] ?? "");
+          const recent = since !== null && Date.now() - since <= 30 * 60e3;
+          if (!fresh0("live") && recent && !quiet) { fresh.push(`${w.text?.[0]?.split(",")[0] || "Stau oder Gefahr"}: ${w.title}`); added = true; }
         }
+        if (added) newSent.push(slot);
       }
       if (fresh.length && !isNew) {
         messages.push(fresh.length === 1
