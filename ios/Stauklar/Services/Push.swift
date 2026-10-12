@@ -25,6 +25,7 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
     static let shared = PushManager()
 
     @Published var authorized = false
+    @Published var denied = false
     @Published var lastError: String?
     /// Autobahn, die aus einer angetippten Benachrichtigung geöffnet werden soll
     @Published var pendingRoad: String?
@@ -45,6 +46,7 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
     func refresh() async {
         let s = await UNUserNotificationCenter.current().notificationSettings()
         authorized = s.authorizationStatus == .authorized
+        denied = s.authorizationStatus == .denied
         if authorized { UIApplication.shared.registerForRemoteNotifications() }
     }
 

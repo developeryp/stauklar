@@ -4,8 +4,8 @@ import MapKit
 struct HomeView: View {
     @EnvironmentObject private var store: Store
     @ObservedObject private var push = PushManager.shared
+    @EnvironmentObject private var nav: Nav
     @State private var query = ""
-    @State private var path = NavigationPath()
     @State private var camera: MapCameraPosition = .region(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 51.2, longitude: 10.4), span: MKCoordinateSpan(latitudeDelta: 8.2, longitudeDelta: 8.2)))
     /// Meter pro Bildschirmpunkt beim aktuellen Zoom, damit die Punkte immer gleich groß bleiben
     @State private var metersPerPoint = 8.2 * 110_570 / 250
@@ -14,7 +14,7 @@ struct HomeView: View {
     private let columns = [GridItem(.adaptive(minimum: 76), spacing: 8)]
 
     var body: some View {
-        NavigationStack(path: $path) {
+        NavigationStack(path: $nav.path) {
             ScrollView {
                 if query.isEmpty { overview } else { searchResults }
             }
@@ -26,20 +26,6 @@ struct HomeView: View {
             .navigationDestination(for: NearbyTarget.self) { NearbyView(target: $0) }
             .searchable(text: $query, prompt: "Autobahn oder Stadt")
             .refreshable { await store.load() }
-            .task { if store.roads.isEmpty { await store.load() } }
-            .onChange(of: push.pendingRoad) { _, road in
-                if let road { path.append(road); push.pendingRoad = nil }
-            }
-            // Universal Links: stauklar.de/a7/ öffnet die A7, stauklar.de/?ort=Berlin den Umkreis
-            .onOpenURL { url in
-                let parts = url.pathComponents.filter { $0 != "/" }
-                if let first = parts.first, first.lowercased().hasPrefix("a"), first.count > 1, let r = store.roads.first(where: { $0.slug == first.lowercased() }) {
-                    path.append(r.id)
-                } else if let ort = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "ort" })?.value,
-                          let c = store.cities.first(where: { $0.name.lowercased() == ort.lowercased() }) {
-                    path.append(NearbyTarget.place(name: c.name, lat: c.lat, lon: c.lon))
-                }
-            }
         }
     }
 
@@ -77,26 +63,6 @@ struct HomeView: View {
                     KPI(value: t.live, label: "Staus & Gefahren", color: Theme.color(.live))
                 }
             }
-            HStack(spacing: 10) {
-                NavigationLink(value: NearbyTarget.me) {
-                    Label("In meiner Nähe", systemImage: "location.fill")
-                        .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.capsule)
-                NavigationLink(value: DriveTarget()) {
-                    Label("Fahrmodus", systemImage: "car.fill")
-                        .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.capsule)
-            }
-            Text("Fahrmodus: erkennt deine Autobahn und zeigt mit Entfernung, was vor dir liegt. Nur für den Beifahrer, nicht während der Fahrt bedienen.")
-                .font(.caption).foregroundStyle(.tertiary)
         }
     }
 
@@ -130,9 +96,9 @@ struct HomeView: View {
                         if d < 18, best == nil || d < best!.1 { best = (p, d) }
                     }
                     if let hit = best?.0 {
-                        path.append(RoadTarget(road: hit.road, item: hit.id))
+                        nav.path.append(RoadTarget(road: hit.road, item: hit.id))
                     } else if let c = proxy.convert(pt, from: .local) {
-                        path.append(NearbyTarget.place(name: "diese Stelle", lat: c.latitude, lon: c.longitude))
+                        nav.path.append(NearbyTarget.place(name: "diese Stelle", lat: c.latitude, lon: c.longitude))
                     }
                 }
             }
@@ -146,19 +112,6 @@ struct HomeView: View {
             Text("Tipp auf einen Punkt, um die Meldung zu öffnen, oder auf eine freie Stelle für den Umkreis dort. Zum Scrollen neben der Karte wischen.")
                 .font(.caption).foregroundStyle(.tertiary)
         }
-    }
-
-    /// „HH:mm“ ↔ Date für den Zeitwähler
-    private var digestBinding: Binding<Date> {
-        Binding(
-            get: {
-                let p = push.digestTime.split(separator: ":").compactMap { Int($0) }
-                return Calendar.current.date(from: DateComponents(hour: p.first ?? 6, minute: p.count > 1 ? p[1] : 30)) ?? Date()
-            },
-            set: { d in
-                let c = Calendar.current.dateComponents([.hour, .minute], from: d)
-                push.digestTime = String(format: "%02d:%02d", c.hour ?? 6, c.minute ?? 30)
-            })
     }
 
     private func legend(_ s: Severity, _ t: String) -> some View {
@@ -186,40 +139,19 @@ struct HomeView: View {
         }
     }
 
-    /// Einladung zu Benachrichtigungen, sobald es Lieblingsstrecken gibt
-    @ViewBuilder
+    /// Kurzer Hinweis; die Einstellungen selbst liegen im Reiter „Einstellungen“
     private var pushCard: some View {
-        if push.authorized {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 10) {
-                    Image(systemName: "bell.badge.fill").foregroundStyle(Theme.accent)
-                    Text("Sofort Bescheid bei neuen Vollsperrungen, dazu jeden Morgen die Lage auf deinen Strecken.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
-                HStack {
-                    Text("Morgenlage um").font(.subheadline.weight(.medium))
-                    Spacer()
-                    DatePicker("Uhrzeit der Morgenlage", selection: digestBinding, displayedComponents: .hourAndMinute)
-                        .labelsHidden()
-                        .datePickerStyle(.compact)
-                }
-            }
-            .card()
-        } else {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Morgens Bescheid bekommen?").font(.headline)
-                Text("Stauklar meldet sich morgens zur Wunschzeit, wenn auf deinen Strecken heute etwas gesperrt ist, und sofort bei neuen Vollsperrungen.")
-                    .font(.subheadline).foregroundStyle(.secondary)
-                Button {
-                    Task { await push.enable() }
-                } label: {
-                    Text("Benachrichtigungen einschalten").font(.subheadline.weight(.semibold)).padding(.horizontal, 4)
-                }
-                .buttonStyle(.borderedProminent).buttonBorderShape(.capsule)
-                if let e = push.lastError { Text(e).font(.caption).foregroundStyle(.secondary) }
+        Button { nav.tab = .settings } label: {
+            HStack(spacing: 10) {
+                Image(systemName: push.authorized ? "bell.badge.fill" : "bell").foregroundStyle(Theme.accent)
+                Text(push.authorized ? "Morgenlage um \(push.digestTime) Uhr, Sofortmeldung bei Vollsperrungen." : "Morgens Bescheid bekommen? Benachrichtigungen einschalten.")
+                    .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
             }
             .card()
         }
+        .buttonStyle(.plain)
     }
 
     private var busiest: some View {

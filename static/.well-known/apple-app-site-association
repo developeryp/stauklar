@@ -1,1 +1,1 @@
-{"applinks":{"details":[{"appIDs":["6AY5V43PJ2.de.stauklar.app"],"components":[{"/":"/a*/","comment":"Autobahn-Seiten"},{"/":"/","comment":"Startseite"}]}]}}
+{"applinks":{"details":[{"appIDs":["6AY5V43PJ2.de.stauklar.app"],"components":[{"/":"/app/open/*","comment":"Nur ausdrückliche App-Links; normale Seiten bleiben im Browser"}]}]}}

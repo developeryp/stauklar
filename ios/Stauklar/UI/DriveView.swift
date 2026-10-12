@@ -12,6 +12,7 @@ struct DriveView: View {
     /// Übersicht (ca. 5 km, von oben) oder Nah (3D in Fahrtrichtung wie eine Navigation)
     @AppStorage("driveClose") private var closeView = false
     @State private var showMap = true
+    @State private var refollow: Task<Void, Never>?
     /// Meldung, die vorab angeschaut wird (Tipp auf Karte oder Liste)
     @State private var preview: RoadTarget?
 
@@ -130,17 +131,16 @@ struct DriveView: View {
                 return
             }
             // Richtung noch nicht erkannt (z. B. im Stand): Karte nach Norden, Auto in der Mitte; sonst in Fahrtrichtung mit Blick voraus
-            let known = model.message == nil
-            let heading = known ? model.heading : 0
-            let c = known ? here.moved(meters: closeView ? 200 : 1800, heading: heading) : here
+            // Standort bleibt immer in der Mitte; in Fahrtrichtung gedreht, sobald sie bekannt ist
+            let heading = model.message == nil ? model.heading : 0
             withAnimation(.linear(duration: 1)) {
-                camera = .camera(MapCamera(centerCoordinate: c, distance: closeView ? 650 : 6500, heading: heading, pitch: closeView ? 50 : 0))
+                camera = .camera(MapCamera(centerCoordinate: here, distance: closeView ? 900 : 6500, heading: heading, pitch: closeView ? 45 : 0))
             }
         }
         .onChange(of: closeView) { _, _ in following = true; model.cameraTick += 1 }
         // Verschieben oder Drehen von Hand: Karte folgt nicht mehr, bis der Pfeil-Button gedrückt wird
-        .simultaneousGesture(DragGesture(minimumDistance: 8).onChanged { _ in following = false })
-        .simultaneousGesture(RotationGesture().onChanged { _ in following = false })
+        .simultaneousGesture(DragGesture(minimumDistance: 8).onChanged { _ in pauseFollowing() })
+        .simultaneousGesture(RotationGesture().onChanged { _ in pauseFollowing() })
         .overlay(alignment: .top) {
             if model.roadID != nil { Picker("Ansicht", selection: $closeView) {
                 Text("Übersicht").tag(false)
@@ -185,6 +185,16 @@ struct DriveView: View {
             }
             .padding(8)
             .accessibilityLabel("Karte ausblenden")
+        }
+    }
+
+    /// Nach dem Verschieben folgt die Karte nach 8 Sekunden wieder von selbst
+    private func pauseFollowing() {
+        following = false
+        refollow?.cancel()
+        refollow = Task {
+            try? await Task.sleep(for: .seconds(8))
+            if !Task.isCancelled { following = true; model.cameraTick += 1 }
         }
     }
 

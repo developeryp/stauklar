@@ -7,7 +7,7 @@ struct StauklarApp: App {
 
     var body: some Scene {
         WindowGroup {
-            HomeView()
+            RootView()
                 .environmentObject(store)
                 .tint(Theme.accent)
         }

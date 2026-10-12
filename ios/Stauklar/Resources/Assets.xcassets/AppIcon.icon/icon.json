@@ -6,10 +6,12 @@
     {
       "layers" : [
         {
+          "glass" : true,
           "image-name" : "3-Mittelstreifen.png",
           "name" : "3-Mittelstreifen"
         },
         {
+          "glass" : true,
           "image-name" : "2-Rahmen.png",
           "name" : "2-Rahmen"
         }
