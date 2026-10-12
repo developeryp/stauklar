@@ -79,7 +79,7 @@ struct HomeView: View {
         return VStack(alignment: .leading, spacing: 10) {
             SectionTitle(text: "Deutschland heute", detail: pts.isEmpty ? nil : "\(pts.count)")
             MapReader { proxy in
-                Map(position: $camera, interactionModes: [.zoom]) {
+                Map(position: $camera, interactionModes: [.pan, .zoom]) {
                     UserAnnotation()
                     ForEach(pts) { p in
                         MapCircle(center: p.coordinate, radius: p.severity == .kurz ? 5500 : 8000)

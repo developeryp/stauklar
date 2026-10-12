@@ -172,8 +172,8 @@ struct RoadView: View {
     }
 
     private func map(_ d: RoadDetail, items: [Item], warns: [Warn]) -> some View {
-        // In der Seite nur zoomen (sonst fängt die Karte das Scrollen ab); Vollbild mit allen Gesten
-        RoadMap(detail: d, items: items, warns: warns, selected: $selected, camera: $camera, modes: [.zoom], onSelect: select)
+        // Verschieben und Zoomen auch in der Seite; zum Scrollen neben der Karte wischen. Vollbild über den Knopf.
+        RoadMap(detail: d, items: items, warns: warns, selected: $selected, camera: $camera, modes: [.pan, .zoom], onSelect: select)
             .frame(height: 300)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(alignment: .topLeading) {
