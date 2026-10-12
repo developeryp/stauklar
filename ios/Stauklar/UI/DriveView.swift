@@ -1,17 +1,22 @@
 import SwiftUI
 import CoreLocation
+import MapKit
 import UIKit
 
 /// Fahrmodus: erkennt Autobahn und Fahrtrichtung aus dem Standort und zeigt, was voraus liegt, mit Entfernung.
 struct DriveView: View {
     @EnvironmentObject private var store: Store
     @StateObject private var model = DriveModel()
+    @State private var camera: MapCameraPosition = .userLocation(followsHeading: true, fallback: .automatic)
+    @State private var following = true
+    @State private var showMap = true
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             VStack(spacing: 0) {
                 header
+                if showMap { driveMap }
                 if let msg = model.message {
                     Spacer()
                     VStack(spacing: 12) {
@@ -45,6 +50,49 @@ struct DriveView: View {
         .onDisappear { model.stop(); UIApplication.shared.isIdleTimerDisabled = false }
     }
 
+    /// Karte, die der Position folgt und in Fahrtrichtung zeigt; Meldungen voraus farbig
+    private var driveMap: some View {
+        Map(position: $camera, interactionModes: [.zoom]) {
+            UserAnnotation()
+            ForEach(model.mapItems) { it in
+                if it.geom.count > 1 {
+                    MapPolyline(coordinates: it.coordinates)
+                        .stroke(Theme.color(it.severity), style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                }
+            }
+            ForEach(model.mapWarns) { w in
+                if w.geom.count > 1 {
+                    MapPolyline(coordinates: w.coordinates)
+                        .stroke(Theme.color(.live), style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                }
+            }
+        }
+        .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
+        .frame(height: 280)
+        // Kamera: ca. 5 km Sicht, in Fahrtrichtung gedreht, folgt der Position
+        .onChange(of: model.cameraTick) { _, _ in
+            guard following, let c = model.location?.coordinate else { return }
+            withAnimation(.linear(duration: 1)) {
+                camera = .camera(MapCamera(centerCoordinate: c, distance: 6500, heading: model.heading, pitch: 0))
+            }
+        }
+        .onMapCameraChange(frequency: .onEnd) { _ in }
+        .overlay(alignment: .topTrailing) {
+            Button { following.toggle() } label: {
+                Image(systemName: following ? "location.fill" : "location").font(.body.weight(.semibold)).padding(9).background(.regularMaterial, in: Circle())
+            }
+            .padding(8)
+            .accessibilityLabel(following ? "Karte folgt dir" : "Karte folgen lassen")
+        }
+        .overlay(alignment: .topLeading) {
+            Button { withAnimation { showMap = false } } label: {
+                Image(systemName: "chevron.up").font(.caption.weight(.bold)).padding(8).background(.regularMaterial, in: Circle())
+            }
+            .padding(8)
+            .accessibilityLabel("Karte ausblenden")
+        }
+    }
+
     private var header: some View {
         HStack(spacing: 14) {
             if let road = model.roadID {
@@ -57,6 +105,10 @@ struct DriveView: View {
                 Text("Autobahn wird gesucht …").font(.title3.weight(.semibold)).foregroundStyle(.secondary)
             }
             Spacer()
+            if !showMap {
+                Button { withAnimation { showMap = true } } label: { Image(systemName: "map").font(.title3) }
+                    .buttonStyle(.plain).foregroundStyle(.secondary).padding(.trailing, 6)
+            }
             if let s = model.speedKmh {
                 VStack(spacing: 0) {
                     Text("\(s)").font(.system(size: 34, weight: .bold, design: .rounded)).monospacedDigit()
@@ -127,6 +179,11 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var message: String? = "Standort wird bestimmt …"
     @Published var icon = "location"
     @Published var stand = ""
+    @Published var mapItems: [Item] = []
+    @Published var mapWarns: [Warn] = []
+    @Published var location: CLLocation?
+    @Published var heading: Double = 0
+    @Published var cameraTick = 0
 
     private let manager = CLLocationManager()
     private weak var store: Store?
@@ -167,6 +224,8 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     private func update(_ loc: CLLocation) {
         speedKmh = loc.speed >= 0 ? Int((loc.speed * 3.6).rounded()) : nil
+        location = loc
+        defer { cameraTick += 1 }
         guard let store, !store.points.isEmpty else { message = "Daten werden geladen …"; return }
         let here = loc.coordinate
 
@@ -198,6 +257,7 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             course = atan2(dLon, dLat) * 180 / .pi
         }
         if course >= -180 && course != -1 {
+            heading = (course + 360).truncatingRemainder(dividingBy: 360)
             let rad = course * .pi / 180
             let dot = sin(rad) * axis.vx + cos(rad) * axis.vy
             dir = dot >= 0 ? "plus" : "minus"
@@ -224,6 +284,9 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             list.append(Upcoming(id: w.id, km: km, title: w.title, label: w.text.first ?? "Stau oder Gefahr", when: "", severity: .live, lanes: [], laneText: "", active: true))
         }
         upcoming = list.sorted { $0.km < $1.km }
+        let ids = Set(d.groups.filter { g in list.contains { $0.id == g.id } }.flatMap(\.items))
+        mapItems = d.items.filter { ids.contains($0.id) }
+        mapWarns = d.warns.filter { w in list.contains { $0.id == w.id } }
         stand = "Stand \(Date().formatted(date: .omitted, time: .shortened)) Uhr · \(upcoming.count) voraus"
     }
 
