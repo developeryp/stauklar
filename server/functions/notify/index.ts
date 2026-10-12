@@ -12,7 +12,7 @@ const TEAM_ID = "6AY5V43PJ2";
 
 type Device = { token: string; env: string; roads: string[]; tz: string; digest_time?: string; digest_on?: boolean; alerts_on?: boolean; alerts_all?: boolean; alert_kinds?: string[] | null };
 type Item = { id: string; title: string; sev: string; label: string; heute: boolean; active: boolean; when: string; start: string | null };
-type Group = { title: string; sev: string; label: string; heute: boolean; when: string; start: string | null };
+type Group = { title: string; sev: string; label: string; heute: boolean; when: string; start: string | null; items?: string[] };
 type Warn = { title: string; dir: string; text: string[] };
 type Road = { id: string; items: Item[]; groups?: Group[]; warns?: Warn[] };
 
@@ -46,12 +46,13 @@ async function apnsToken(pem: string, keyId: string): Promise<string> {
   return `${header}.${claims}.${b64url(sig)}`;
 }
 
-async function push(jwt: string, d: Device, title: string, body: string, road: string): Promise<"ok" | "gone" | "error"> {
+// road/item: beim Antippen öffnet die App diese Autobahn bzw. genau diese Meldung; ohne road die Startseite
+async function push(jwt: string, d: Device, title: string, body: string, road?: string, item?: string, itemTitle?: string): Promise<"ok" | "gone" | "error"> {
   const host = d.env === "sandbox" ? "api.sandbox.push.apple.com" : "api.push.apple.com";
   const r = await fetch(`https://${host}/3/device/${d.token}`, {
     method: "POST",
     headers: { authorization: `bearer ${jwt}`, "apns-topic": TOPIC, "apns-push-type": "alert", "apns-priority": "10" },
-    body: JSON.stringify({ aps: { alert: { title, body }, sound: "default", "thread-id": road }, road }),
+    body: JSON.stringify({ aps: { alert: { title, body }, sound: "default", "thread-id": road ?? "digest" }, road, item, title: itemTitle }),
   });
   if (r.ok) return "ok";
   const txt = await r.text();
@@ -69,7 +70,8 @@ function road(id: string): Promise<Road | null> {
 }
 
 const closures = (r: Road) => r.items.filter((i) => i.heute && (i.sev === "voll" || i.sev === "sperr"));
-const key = (r: string, i: Item) => `${r}/${i.id}/${i.start ?? ""}`;
+// Über den Titel, nicht die Nummer: die Nummern werden bei jedem Datenabruf neu vergeben
+const key = (r: string, i: Item) => `v/${r}/${i.title}/${i.start ?? ""}`;
 
 function localNow(tz: string) {
   const parts = new Intl.DateTimeFormat("de-DE", { timeZone: tz || "Europe/Berlin", hour: "2-digit", minute: "2-digit", year: "numeric", month: "2-digit", day: "2-digit", hour12: false })
@@ -110,7 +112,7 @@ Deno.serve(async (req) => {
     const minutesNow = now.hour * 60 + now.minute, minutesWanted = (dh || 6) * 60 + (dm || 0);
     const digestTime = force === "digest" || (minutesNow >= minutesWanted && minutesNow < minutesWanted + 10);
     const newSent: string[] = [];
-    const messages: { title: string; body: string; road: string }[] = [];
+    const messages: { title: string; body: string; road?: string; item?: string; itemTitle?: string }[] = [];
     const digestLines: string[] = [];
     // Neues Gerät: bestehende Vollsperrungen nur merken, nicht melden (sonst kommt beim Einschalten ein Schwall alter Meldungen)
     const isNew = !sentRows.some((s) => s.token === d.token);
@@ -120,17 +122,22 @@ Deno.serve(async (req) => {
     // Art gerade erst gewählt: Bestehendes nur merken, nicht melden (Merker k/<art>/_)
     const fresh0 = (k: string) => !sent.has(`${d.token}|k/${k}/_`);
     for (const k of kinds) { if (k !== "voll" && fresh0(k)) newSent.push(`k/${k}/_`); seen(d.token, `k/${k}/_`); }
+    // Umstellung der Vollsperrungs-Schlüssel: einmal still merken
+    const vSeed = fresh0("v");
+    if (vSeed) newSent.push("k/v/_");
+    seen(d.token, "k/v/_");
 
     for (const rid of d.roads) {
       const r = await road(rid);
       if (!r) continue;
       // Neue Meldungen der gewählten Arten (außer Vollsperrung, die läuft unten wie bisher)
       const fresh: string[] = [];
+      let freshItem: string | undefined, freshTitle: string | undefined;
       for (const g of (r.groups ?? []).filter((g) => g.heute && g.sev !== "voll" && kinds.has(g.sev))) {
         // Je Maßnahme einmal, nicht bei jedem Termin einer wiederkehrenden Baustelle
         const k = `k/${g.sev}/${rid}/${g.title}`;
         seen(d.token, k);
-        if (!sent.has(`${d.token}|${k}`)) { newSent.push(k); if (!fresh0(g.sev)) fresh.push(`${g.label}: ${g.title}, ${g.when}`); }
+        if (!sent.has(`${d.token}|${k}`)) { newSent.push(k); if (!fresh0(g.sev)) { fresh.push(`${g.label}: ${g.title}, ${g.when}`); freshItem = g.items?.[0]; freshTitle = g.title; } }
       }
       if (kinds.has("live")) {
         for (const w of r.warns ?? []) {
@@ -141,7 +148,7 @@ Deno.serve(async (req) => {
       }
       if (fresh.length && !isNew) {
         messages.push(fresh.length === 1
-          ? { title: `${rid}: neue Meldung`, body: fresh[0], road: rid }
+          ? { title: `${rid}: neue Meldung`, body: fresh[0], road: rid, item: freshItem, itemTitle: freshTitle }
           : { title: `${rid}: ${fresh.length} neue Meldungen`, body: fresh.slice(0, 4).join("\n") + (fresh.length > 4 ? `\nund ${fresh.length - 4} weitere` : ""), road: rid });
       }
       const cl = closures(r);
@@ -149,7 +156,7 @@ Deno.serve(async (req) => {
         const k = key(rid, it);
         seen(d.token, k);
         if (it.sev === "voll" && !sent.has(`${d.token}|${k}`)) {
-          if (!isNew && kinds.has("voll")) messages.push({ title: `${rid} voll gesperrt`, body: `${it.title}, ${it.when}`, road: rid });
+          if (!isNew && !vSeed && kinds.has("voll")) messages.push({ title: `${rid} voll gesperrt`, body: `${it.title}, ${it.when}`, road: rid, item: it.id, itemTitle: it.title });
           newSent.push(k);
         }
       }
@@ -160,13 +167,13 @@ Deno.serve(async (req) => {
     }
 
     if (digestTime && d.digest_on !== false && digestLines.length && !sent.has(`${d.token}|${digestKey}`)) {
-      messages.push({ title: "Deine Strecken heute", body: digestLines.join("\n"), road: d.roads[0] });
+      messages.push({ title: "Deine Strecken heute", body: digestLines.join("\n") });
       newSent.push(digestKey);
     }
 
     let gone = false;
     for (const m of messages) {
-      const res = await push(jwt, d, m.title, m.body, m.road);
+      const res = await push(jwt, d, m.title, m.body, m.road, m.item, m.itemTitle);
       if (res === "ok") stats.pushed++;
       else if (res === "gone") { gone = true; break; }
       else stats.errors++;

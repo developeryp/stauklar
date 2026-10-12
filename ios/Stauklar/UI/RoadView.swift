@@ -6,6 +6,7 @@ struct RoadView: View {
     let roadID: String
     /// Meldung (Item- oder Stau-ID), die beim Öffnen aufgeklappt und auf der Karte gezeigt wird
     var focusItem: String? = nil
+    var focusTitle: String? = nil
     /// Vorschau aus dem Fahrmodus: ohne „In der Nähe“, da dort nur die eine Meldung interessiert
     var preview = false
     @EnvironmentObject private var store: Store
@@ -64,7 +65,7 @@ struct RoadView: View {
             detail = d
             if visible(d).isEmpty && when == .heute { when = d.groups.contains { $0.woche } ? .woche : .alle }
             fitAll(d)
-            if let fi = focusItem { openItem(fi, in: d) }
+            if let fi = resolveFocus(d) { openItem(fi, in: d) }
         } catch {
             failed = true
         }
@@ -363,6 +364,15 @@ struct RoadView: View {
 
     private func binding(_ id: String) -> Binding<Bool> {
         Binding(get: { expanded.contains(id) }, set: { on in if on { expanded.insert(id) } else { expanded.remove(id) } })
+    }
+
+    /// Gemeldete Nummer prüfen: passt der Titel nicht mehr, die Meldung über den Titel suchen
+    private func resolveFocus(_ d: RoadDetail) -> String? {
+        guard let fi = focusItem else { return nil }
+        guard let t = focusTitle, !t.isEmpty else { return fi }
+        let byId = d.items.first { $0.id == fi }
+        if let byId, byId.title == t || d.groups.first(where: { $0.items.contains(fi) })?.title == t { return fi }
+        return d.items.first { $0.title == t }?.id ?? d.groups.first { $0.title == t }?.items.first ?? (byId == nil ? nil : fi)
     }
 
     /// Aus Startseite oder Umkreis kommend: zugehörige Maßnahme finden, Filter passend setzen, aufklappen, hinzoomen

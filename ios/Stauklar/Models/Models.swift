@@ -221,6 +221,8 @@ struct City: Codable, Identifiable, Hashable {
 struct RoadTarget: Hashable, Identifiable {
     let road: String
     let item: String?
+    /// Titel der Meldung, falls die Nummer inzwischen neu vergeben wurde (z. B. aus einer älteren Benachrichtigung)
+    var title: String? = nil
     var id: String { "\(road)/\(item ?? "")" }
 }
 

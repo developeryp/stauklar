@@ -40,7 +40,7 @@ struct NearbyView: View {
             .padding(.horizontal, 18)
             .padding(.bottom, 30)
         }
-        .navigationDestination(for: RoadTarget.self) { RoadView(roadID: $0.road, focusItem: $0.item) }
+        .navigationDestination(for: RoadTarget.self) { RoadView(roadID: $0.road, focusItem: $0.item, focusTitle: $0.title) }
         .navigationTitle(name.isEmpty ? "In der Nähe" : "Rund um \(name)")
         .navigationBarTitleDisplayMode(.large)
         .task { await locate() }

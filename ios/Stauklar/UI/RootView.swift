@@ -8,6 +8,13 @@ final class Nav: ObservableObject {
     @Published var path = NavigationPath()
 
     func open(road: String) { tab = .start; path.append(road) }
+    /// Aus einer Benachrichtigung: Startseite frisch, darauf die Autobahn bzw. die Meldung
+    func open(road: String, item: String?, title: String? = nil) {
+        tab = .start
+        var p = NavigationPath()
+        if let item { p.append(RoadTarget(road: road, item: item, title: title)) } else { p.append(road) }
+        path = p
+    }
     func open(_ target: NearbyTarget) { tab = .start; path.append(target) }
 }
 
@@ -17,6 +24,16 @@ struct RootView: View {
     @StateObject private var nav = Nav()
     @ObservedObject private var push = PushManager.shared
     @Environment(\.scenePhase) private var phase
+
+    private func openPending() {
+        if let road = push.pendingRoad {
+            nav.open(road: road, item: push.pendingItem, title: push.pendingTitle)
+            push.pendingRoad = nil; push.pendingItem = nil; push.pendingTitle = nil
+        } else if push.pendingHome {
+            nav.tab = .start; nav.path = NavigationPath()
+            push.pendingHome = false
+        }
+    }
 
     var body: some View {
         TabView(selection: $nav.tab) {
@@ -47,9 +64,10 @@ struct RootView: View {
             }
         }
         // Angetippte Benachrichtigung → Autobahn öffnen
-        .onChange(of: push.pendingRoad) { _, road in
-            if let road { nav.open(road: road); push.pendingRoad = nil }
-        }
+        .onChange(of: push.pendingRoad) { _, _ in openPending() }
+        .onChange(of: push.pendingHome) { _, _ in openPending() }
+        // App war geschlossen: der Tipp kam vor dem ersten Bild an
+        .onAppear { openPending() }
         // Universal Links (stauklar.de/app/open/a7/) und Smart-App-Banner (stauklar.de/a7/, ?ort=Berlin)
         .onOpenURL { url in
             let parts = url.pathComponents.filter { $0 != "/" }.map { $0.lowercased() }

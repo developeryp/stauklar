@@ -36,7 +36,7 @@ struct HomeView: View {
             }
             .toolbarTitleDisplayMode(.inline)
             .navigationDestination(for: String.self) { RoadView(roadID: $0) }
-            .navigationDestination(for: RoadTarget.self) { RoadView(roadID: $0.road, focusItem: $0.item) }
+            .navigationDestination(for: RoadTarget.self) { RoadView(roadID: $0.road, focusItem: $0.item, focusTitle: $0.title) }
             .navigationDestination(for: DriveTarget.self) { _ in DriveView() }
             .navigationDestination(for: NearbyTarget.self) { NearbyView(target: $0) }
             .searchable(text: $query, prompt: "Autobahn oder Stadt")

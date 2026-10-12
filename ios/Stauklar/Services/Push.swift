@@ -29,6 +29,11 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
     @Published var lastError: String?
     /// Autobahn, die aus einer angetippten Benachrichtigung geöffnet werden soll
     @Published var pendingRoad: String?
+    /// Meldung, die dabei aufgeklappt werden soll (nil = nur die Autobahn)
+    var pendingItem: String?
+    var pendingTitle: String?
+    /// Morgenlage angetippt: Startseite mit „Meine Strecken“ zeigen
+    @Published var pendingHome = false
 
     /// Wunschzeit der Morgenlage als „HH:mm“
     @Published var digestTime: String = UserDefaults.standard.string(forKey: "digestTime") ?? "06:30" {
@@ -121,7 +126,11 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        let road = response.notification.request.content.userInfo["road"] as? String
-        await MainActor.run { PushManager.shared.pendingRoad = road }
+        let info = response.notification.request.content.userInfo
+        let road = info["road"] as? String, item = info["item"] as? String, title = info["title"] as? String
+        await MainActor.run {
+            if let road { PushManager.shared.pendingItem = item; PushManager.shared.pendingTitle = title; PushManager.shared.pendingRoad = road }
+            else { PushManager.shared.pendingHome = true }
+        }
     }
 }
