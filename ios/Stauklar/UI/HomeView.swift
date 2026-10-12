@@ -48,7 +48,9 @@ struct HomeView: View {
         HStack(spacing: 10) {
             Image("Logo").resizable().frame(width: 34, height: 34)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            Text("Stauklar").font(.system(size: 28, weight: .bold)).tracking(-0.5)
+            (Text("Stau").foregroundStyle(Color.primary) + Text("klar").foregroundStyle(Theme.accent))
+                .font(.system(size: 28, weight: .bold)).tracking(-0.5)
+                .accessibilityLabel("Stauklar")
         }
         .fixedSize()
         .accessibilityElement(children: .combine)

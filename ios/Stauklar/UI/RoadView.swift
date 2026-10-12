@@ -573,6 +573,17 @@ struct WarnRow: View {
     @Binding var expanded: Bool
     let onMap: () -> Void
 
+    /// Kürzt „seit 12.10.2026, 11:13“ zu „seit 11:13“ (heute) bzw. „seit 11.10., 15:33“
+    static func headline(_ t: String) -> String {
+        guard let r = t.range(of: #"seit (\d{2})\.(\d{2})\.(\d{4}), (\d{2}:\d{2})"#, options: .regularExpression) else { return t }
+        let m = String(t[r]), parts = m.dropFirst(5).split(separator: ",")
+        let date = String(parts[0]), time = parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespaces) : ""
+        let f = DateFormatter(); f.dateFormat = "dd.MM.yyyy"
+        let today = f.string(from: Date()) == date
+        let short = today ? "seit \(time)" : "seit \(date.prefix(6)), \(time)"
+        return t.replacingCharacters(in: r, with: short)
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             Circle().fill(Theme.color(.live)).frame(width: 14, height: 14)
@@ -584,7 +595,9 @@ struct WarnRow: View {
                         VStack(alignment: .leading, spacing: 3) {
                             HStack(spacing: 6) {
                                 Badge(text: "live", color: Theme.color(.live))
-                                Text(warn.text.first ?? "aktuell").font(.caption.weight(.semibold)).foregroundStyle(Theme.color(.live)).lineLimit(1)
+                                // „Angespannte Verkehrslage, seit 12.10.2026, 11:13“ → Art und kurze Zeit, damit nichts abgeschnitten wird
+                                Text(Self.headline(warn.text.first ?? "aktuell")).font(.caption.weight(.semibold)).foregroundStyle(Theme.color(.live))
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                             Text(warn.title).font(.body.weight(.semibold)).multilineTextAlignment(.leading)
                             (Text("Stau, Unfall oder Gefahr").foregroundStyle(Theme.color(.live)).fontWeight(.semibold) + Text(label.isEmpty ? "" : " · \(label)").foregroundStyle(.secondary)).font(.caption)
