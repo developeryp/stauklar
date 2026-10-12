@@ -135,19 +135,29 @@ struct NearbyRow: View {
     let point: Point
     let km: Double
 
+    private var whenText: String {
+        if point.severity == .live { return WarnRow.headline(point.when) }
+        return point.active ? point.when.replacingOccurrences(of: "jetzt ", with: "") : point.when
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             Circle().fill(Theme.color(point.severity)).frame(width: 10, height: 10)
             Shield(id: point.road, size: 12)
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    if point.active { Badge(text: "jetzt", color: Theme.color(point.severity)) }
-                    Text(point.active ? point.when.replacingOccurrences(of: "jetzt ", with: "") : point.when)
+                // Abzeichen + Zeit linksbündig; bei Staus kurz („Angespannte Verkehrslage, seit 12:28“)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    if point.severity == .live { Badge(text: "live", color: Theme.color(.live)) }
+                    else if point.active { Badge(text: "jetzt", color: Theme.color(point.severity)) }
+                    Text(whenText)
                         .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 Text(point.title).font(.subheadline.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
                 Text(point.label).font(.caption.weight(.semibold)).foregroundStyle(Theme.color(point.severity))
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             Spacer(minLength: 0)
             Text(km < 1 ? "< 1 km" : "\(Int(km.rounded())) km")
                 .font(.subheadline.weight(.medium)).foregroundStyle(.secondary).monospacedDigit()

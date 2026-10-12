@@ -115,20 +115,22 @@ struct HomeView: View {
                     metersPerPoint = ctx.region.span.latitudeDelta * 110_570 / Double(mapHeight)
                     region = ctx.region
                 }
-                .onTapGesture { pt in
+                .onTapGesture(coordinateSpace: .named("homeMap")) { pt in
                     // Nächster Punkt im Umkreis von 18 Bildschirmpunkten → genau diese Meldung öffnen, sonst Umkreis dort
                     var best: (Point, CGFloat)?
                     for p in pts {
-                        guard let sp = proxy.convert(p.coordinate, to: .local) else { continue }
+                        guard let sp = proxy.convert(p.coordinate, to: .named("homeMap")) else { continue }
                         let d = hypot(sp.x - pt.x, sp.y - pt.y)
                         if d < 18, best == nil || d < best!.1 { best = (p, d) }
                     }
                     if let hit = best?.0 {
                         nav.path.append(RoadTarget(road: hit.road, item: hit.id))
-                    } else if let c = proxy.convert(pt, from: .local) {
+                    } else if let c = proxy.convert(pt, from: .named("homeMap")) {
                         nav.path.append(NearbyTarget.place(name: "diese Stelle", lat: c.latitude, lon: c.longitude))
                     }
                 }
+                // Eigener Koordinatenraum für Tipp und Umrechnung: .local lag in der ScrollView daneben (Tipp auf Berlin landete in Polen)
+                .coordinateSpace(name: "homeMap")
             }
             .frame(height: mapHeight)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
