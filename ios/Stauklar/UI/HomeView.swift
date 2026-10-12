@@ -20,6 +20,18 @@ struct HomeView: View {
             }
             .background(Color(.systemBackground))
             .navigationTitle("Stauklar")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // Logo neben dem Namen statt reinem Text-Titel
+                // Titel bleibt für den Zurück-Knopf gesetzt, wird aber nicht doppelt neben dem Logo gezeigt
+                ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) }
+                if #available(iOS 26, *) {
+                    ToolbarItem(placement: .topBarLeading) { brand }.sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .topBarLeading) { brand }
+                }
+            }
+            .toolbarTitleDisplayMode(.inline)
             .navigationDestination(for: String.self) { RoadView(roadID: $0) }
             .navigationDestination(for: RoadTarget.self) { RoadView(roadID: $0.road, focusItem: $0.item) }
             .navigationDestination(for: DriveTarget.self) { _ in DriveView() }
@@ -27,6 +39,16 @@ struct HomeView: View {
             .searchable(text: $query, prompt: "Autobahn oder Stadt")
             .refreshable { await store.load() }
         }
+    }
+
+    private var brand: some View {
+        HStack(spacing: 10) {
+            Image("Logo").resizable().frame(width: 34, height: 34)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            Text("Stauklar").font(.system(size: 28, weight: .bold)).tracking(-0.5)
+        }
+        .fixedSize()
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Übersicht

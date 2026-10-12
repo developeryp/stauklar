@@ -406,6 +406,19 @@ def assign_directions(road, items, warns):
     return ax, labels
 
 
+RAMP_TEXT = re.compile(r"Sperrung (der |einer )?(Ausfahrt|Auffahrt|Anschlussstelle|Zufahrt)")
+
+
+def per_measure(items):
+    """Eine Maßnahme zählt einmal, auch wenn sie je Fahrtrichtung gemeldet ist."""
+    best = {}
+    for i in items:
+        k = i.get("g") or i["id"]
+        if k not in best or SEV_RANK[i["sev"]] > SEV_RANK[best[k]["sev"]]:
+            best[k] = i
+    return list(best.values())
+
+
 def enrich(it):
     """Zeit-Filter und Schweregrad für eine Meldung."""
     wins = it["wins"]
@@ -415,18 +428,23 @@ def enrich(it):
     # Das API-Feld isBlocked ist immer „false“. Vollsperrung daher aus Spurdaten oder Text ableiten.
     sym = it.get("lanes") or []
     opn, closed = lane_counts(sym)
-    fully = (closed > 0 and opn == 0) or "Vollsperrung" in f"{it['title']} {it.get('project', '')}"
+    # Text „Vollsperrung“ zählt nur, wenn die Spurdaten nicht widersprechen (offene Spur = keine Vollsperrung)
+    fully = (closed > 0 and opn == 0) or ("Vollsperrung" in f"{it['title']} {it.get('project', '')}" and opn == 0)
     where = it.get("where", "")
+    it["long"] = long_win
     # „Von Auffahrt auf die A1 … nach A1“ / „… nach Abfahrt“: die Spurdaten beschreiben dann die Rampe, nicht die Autobahn
     ramp = (where.startswith(("Abfahrt", "Auffahrt", "Ausfahrt", "Zufahrt", "Von Auffahrt", "Von Abfahrt"))
-            or "nach Abfahrt" in where or (where.startswith("Von ") and "zwischen" not in where))
+            or "nach Abfahrt" in where or (where.startswith("Von ") and "zwischen" not in where)
+            or bool(RAMP_TEXT.search(f"{it['title']} {it.get('project', '')}")))
     it["label"] = None
     if fully and not ramp:
         it["sev"], it["label"] = "voll", "Vollsperrung"
     elif fully:
         # Monatelang gesperrte Rampe gehört zu den Dauerbaustellen, kurzfristige bleibt oben sichtbar
         it["sev"] = "dauer" if long_win else "sperr"
-        it["label"] = "Abfahrt gesperrt" if where.startswith(("Abfahrt", "Ausfahrt")) or "nach Abfahrt" in where else "Auffahrt gesperrt" if "Auffahrt" in where else "Zufahrt gesperrt"
+        txt = f"{where} {it.get('project', '')}"
+        it["label"] = ("Abfahrt gesperrt" if where.startswith(("Abfahrt", "Ausfahrt")) or "nach Abfahrt" in where or "Ausfahrt" in txt
+                       else "Auffahrt gesperrt" if "Auffahrt" in txt else "Anschlussstelle gesperrt" if "Anschlussstelle" in txt else "Zufahrt gesperrt")
     elif it["kind"] == "Sperrung":
         it["sev"] = "sperr" if not long_win else "dauer"
     else:
@@ -441,7 +459,7 @@ def enrich(it):
 # Die API meldet eine Baustelle mehrfach: je Fahrtrichtung, dazu jede gesperrte Auf-/Abfahrt.
 # Für Menschen ist das eine Baustelle mit mehreren Folgen. Darum fassen wir nach Maßnahme + Zeitfenster zusammen.
 
-RAMP_LABELS = ("Abfahrt gesperrt", "Auffahrt gesperrt", "Zufahrt gesperrt")
+RAMP_LABELS = ("Abfahrt gesperrt", "Auffahrt gesperrt", "Zufahrt gesperrt", "Anschlussstelle gesperrt")
 
 
 def plain_place(s):
@@ -463,6 +481,8 @@ def plain_where(where):
 
 def is_ramp(it):
     w = it.get("where", "")
+    if it.get("label") in RAMP_LABELS:
+        return True
     return (w.startswith(("Abfahrt", "Auffahrt", "Ausfahrt", "Zufahrt", "Von Auffahrt", "Von Abfahrt")) or "nach Abfahrt" in w
             or (w.startswith("Von ") and "zwischen" not in w))
 
@@ -557,6 +577,12 @@ def group_items(items):
         gid = f"g{n}"
         for m in mem:
             m["g"] = gid
+        # Eine Richtung „gesperrt“, die andere zeigt Gegenverkehr: der Verkehr wird übergeleitet (z. B. 4+0), man kommt durch
+        crossover = any("Gegenverkehr" in lanes(m.get("lanes") or [])[1] or "Gegenfahrbahn" in lanes(m.get("lanes") or [])[1] for m in mem)
+        if crossover:
+            for m in mem:
+                if m["sev"] == "voll":
+                    m["sev"], m["label"], m["crossed"] = ("dauer" if m.get("long") else "kurz"), "Verkehr über die Gegenfahrbahn", True
         main = [m for m in mem if not is_ramp(m)] or mem
         ramps = [m for m in mem if is_ramp(m)] if len(main) < len(mem) else []
         sev = max(mem, key=lambda m: SEV_RANK[m["sev"]])["sev"]
@@ -567,10 +593,15 @@ def group_items(items):
                 continue
             # bei mehreren Einträgen je Richtung den schwersten zeigen: Vollsperrung vor gesperrten Spuren
             best = max(ms, key=lambda m: (SEV_RANK[m["sev"]], lane_counts(m.get("lanes") or [])[1]))
-            dirs.append(dict(d=d, raw=arrow(best["dir"]), lanes=best.get("lanes") or [], laneText=lanes(best.get("lanes") or [])[1],
+            lt = lanes(best.get("lanes") or [])[1]
+            if best.get("crossed") and lt.startswith("Fahrbahn gesperrt"):
+                lt = "Fahrbahn gesperrt · Verkehr läuft über die Gegenfahrbahn"
+            dirs.append(dict(d=d, raw=arrow(best["dir"]), lanes=best.get("lanes") or [], laneText=lt,
                              where=plain_where(best.get("where", "")), info=best.get("info", "")))
         if sev == "voll":
             label = "Vollsperrung"
+        elif any(m.get("crossed") for m in mem):
+            label = "Verkehr über die Gegenfahrbahn"
         elif not main and ramps:
             label = "Auffahrt/Abfahrt gesperrt" if len({r["label"] for r in ramps}) > 1 else ramps[0]["label"]
         else:
@@ -688,7 +719,7 @@ def plural(n, one, many):
 
 def lage(road, items, warns):
     """Lagebericht in ganzen Sätzen statt Tabellen."""
-    today = [i for i in items if i["w_heute"]]
+    today = per_measure([i for i in items if i["w_heute"]])
     full = [i for i in today if i["sev"] == "voll"]
     short = [i for i in today if i["sev"] in ("sperr", "kurz")]
     dauer = [i for i in today if i["sev"] == "dauer"]
@@ -797,9 +828,10 @@ def road_page(road, d, near):
     week = [i for i in items if i["w_woche"]]
     status, status_txt = status_of(items, warns)
     lage_txt = lage(road, items, warns)
-    n_full = sum(i["sev"] == "voll" for i in today)
-    n_short = sum(i["sev"] in ("sperr", "kurz") for i in today)
-    n_dauer = sum(i["sev"] == "dauer" for i in today)
+    pm = per_measure(today)
+    n_full = sum(i["sev"] == "voll" for i in pm)
+    n_short = sum(i["sev"] in ("sperr", "kurz") for i in pm)
+    n_dauer = sum(i["sev"] == "dauer" for i in pm)
     default_w = "heute" if today or warns else ("woche" if week else "alle")
 
     groups = d["groups"]
@@ -916,7 +948,7 @@ def road_page(road, d, near):
 
 
 def index_page(roads, data):
-    all_today = [(r, i) for r in roads for i in data[r]["items"] if i["w_heute"]]
+    all_today = [(r, i) for r in roads for i in per_measure([i for i in data[r]["items"] if i["w_heute"]])]
     n_full = sum(i["sev"] == "voll" for _, i in all_today)
     n_short = sum(i["sev"] in ("sperr", "kurz") for _, i in all_today)
     n_warn = sum(len(data[r]["warns"]) for r in roads)
@@ -930,7 +962,7 @@ def index_page(roads, data):
     for r in top:
         d = data[r]
         st, st_txt = status_of(d["items"], d["warns"])
-        it = [i for i in d["items"] if i["w_heute"]]
+        it = per_measure([i for i in d["items"] if i["w_heute"]])
         nf = sum(i["sev"] == "voll" for i in it)
         ns = sum(i["sev"] in ("sperr", "kurz") for i in it)
         cards.append(f"""<a class="hot st-{st}" href="/{slug(r)}/">
@@ -1114,7 +1146,7 @@ def write_api(roads, data, punkte):
     for r in roads:
         d = data[r]
         st, st_txt = status_of(d["items"], d["warns"])
-        today = [i for i in d["items"] if i["w_heute"]]
+        today = per_measure([i for i in d["items"] if i["w_heute"]])
         counts = dict(voll=sum(i["sev"] == "voll" for i in today), kurz=sum(i["sev"] in ("sperr", "kurz") for i in today),
                       live=len(d["warns"]), dauer=sum(i["sev"] == "dauer" for i in today))
         c = d["c"]
