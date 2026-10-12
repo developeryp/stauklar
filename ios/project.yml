@@ -10,7 +10,7 @@ settings:
     DEVELOPMENT_TEAM: 6AY5V43PJ2
     SWIFT_VERSION: "5.10"
     MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "3"
+    CURRENT_PROJECT_VERSION: "4"
     SWIFT_STRICT_CONCURRENCY: minimal
 targets:
   Stauklar:
@@ -34,7 +34,6 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         NSLocationWhenInUseUsageDescription: "Stauklar zeigt dir Sperrungen und Baustellen in deiner Nähe. Dein Standort bleibt auf dem Gerät."
         ITSAppUsesNonExemptEncryption: false
     settings:
@@ -42,6 +41,6 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: de.stauklar.app
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1"  # nur iPhone
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: Stauklar/Stauklar.entitlements
