@@ -14,6 +14,7 @@ struct RoadView: View {
     @State private var selected: String?
     @State private var camera: MapCameraPosition = .automatic
     @State private var fullMap = false
+    @State private var scrollTarget: String?
 
     enum When: String, CaseIterable, Identifiable {
         case heute = "Heute", woche = "7 Tage", geplant = "Geplant", alle = "Alles"
@@ -21,8 +22,15 @@ struct RoadView: View {
     }
 
     var body: some View {
-        ScrollView {
-            if let d = detail { content(d) } else if failed { failedView } else { loadingView }
+        ScrollViewReader { proxy in
+            ScrollView {
+                if let d = detail { content(d) } else if failed { failedView } else { loadingView }
+            }
+            .onChange(of: scrollTarget) { _, id in
+                guard let id else { return }
+                withAnimation(.snappy) { proxy.scrollTo(id, anchor: id == "map" ? .top : .center) }
+                scrollTarget = nil
+            }
         }
         .background(Color(.systemBackground))
         .navigationTitle(roadID)
@@ -121,8 +129,8 @@ struct RoadView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(rows) { row in
                             switch row {
-                            case .group(let g): GroupRow(group: g, labels: d.labels, expanded: binding(g.id)) { focus(g.id, d.items.filter { g.items.contains($0.id) }.flatMap(\.coordinates)) }
-                            case .warn(let w): WarnRow(warn: w, label: dirText(w.d, w.dir, d), expanded: binding(w.id)) { focus(w.id, w.coordinates) }
+                            case .group(let g): GroupRow(group: g, labels: d.labels, expanded: binding(g.id)) { focus(g.id, d.items.filter { g.items.contains($0.id) }.flatMap(\.coordinates)) }.id(g.id)
+                            case .warn(let w): WarnRow(warn: w, label: dirText(w.d, w.dir, d), expanded: binding(w.id)) { focus(w.id, w.coordinates) }.id(w.id)
                             }
                         }
                     }
@@ -174,7 +182,8 @@ struct RoadView: View {
     private func map(_ d: RoadDetail, items: [Item], warns: [Warn]) -> some View {
         // Verschieben und Zoomen auch in der Seite; zum Scrollen neben der Karte wischen. Vollbild über den Knopf.
         RoadMap(detail: d, items: items, warns: warns, selected: $selected, camera: $camera, modes: [.pan, .zoom], onSelect: select)
-            .frame(height: 300)
+            .id("map")
+            .frame(height: 260)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(alignment: .topLeading) {
                 Button("Ganze Strecke") { selected = nil; fitAll(d) }
@@ -183,6 +192,7 @@ struct RoadView: View {
                     .background(.regularMaterial, in: Capsule())
                     .padding(10)
             }
+            .overlay(alignment: .bottom) { callout(d) }
             .overlay(alignment: .topTrailing) {
                 Button { fullMap = true } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
@@ -197,6 +207,24 @@ struct RoadView: View {
                 NavigationStack {
                     RoadMap(detail: d, items: items, warns: warns, selected: $selected, camera: $camera, modes: .all, onSelect: select)
                         .ignoresSafeArea()
+                        .overlay(alignment: .bottom) {
+                            if let sel = selected, let g = d.groups.first(where: { $0.id == sel }) ?? nil {
+                                Button { fullMap = false; scrollTarget = sel } label: {
+                                    HStack(spacing: 10) {
+                                        Circle().fill(Theme.color(g.severity)).frame(width: 10, height: 10)
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(g.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                                            Text("\(g.label) · \(g.when)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                        }
+                                        Spacer(minLength: 4)
+                                        Text("Details").font(.caption.weight(.semibold)).foregroundStyle(Theme.accent)
+                                    }
+                                    .padding(.horizontal, 14).padding(.vertical, 10)
+                                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                }
+                                .buttonStyle(.plain).foregroundStyle(.primary).padding(12)
+                            }
+                        }
                         .navigationTitle(d.id)
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
@@ -310,8 +338,44 @@ struct RoadView: View {
     }
 
     private func select(_ id: String) {
-        selected = id
-        expanded.insert(id)
+        withAnimation(.snappy) {
+            selected = id
+            expanded.insert(id)
+        }
+        // Karte samt Sprechblase ganz ins Bild holen
+        if !fullMap { scrollTarget = "map" }
+    }
+
+    /// Sprechblase auf der Karte für die angetippte Meldung
+    @ViewBuilder
+    private func callout(_ d: RoadDetail) -> some View {
+        if let sel = selected {
+            let g = d.groups.first { $0.id == sel }
+            let w = d.warns.first { $0.id == sel }
+            if g != nil || w != nil {
+                Button {
+                    scrollTarget = sel
+                } label: {
+                    HStack(spacing: 10) {
+                        Circle().fill(Theme.color(g?.severity ?? .live)).frame(width: 10, height: 10)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(g?.title ?? w?.title ?? "").font(.subheadline.weight(.semibold)).lineLimit(1)
+                            Text(g.map { $0.active ? $0.when.replacingOccurrences(of: "jetzt ", with: "jetzt, ") : $0.when } ?? (w?.text.first ?? "Stau oder Gefahr"))
+                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        Spacer(minLength: 4)
+                        Text("Details").font(.caption.weight(.semibold)).foregroundStyle(Theme.accent)
+                        Image(systemName: "chevron.down").font(.caption2.weight(.semibold)).foregroundStyle(Theme.accent)
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
+                .padding(10)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
     }
 
     private func focus(_ id: String, _ coords: [CLLocationCoordinate2D]) {
@@ -504,9 +568,14 @@ struct RoadMap: View {
                         .stroke(Theme.color(it.severity).opacity(it.active ? 1 : 0.6), style: StrokeStyle(lineWidth: selected == (it.g ?? it.id) ? 9 : 5, lineCap: .round, lineJoin: .round))
                 }
                 Annotation("", coordinate: it.mid) {
-                    Circle().fill(Theme.color(it.severity)).frame(width: selected == (it.g ?? it.id) ? 16 : 11, height: selected == (it.g ?? it.id) ? 16 : 11)
-                        .overlay(Circle().stroke(.white, lineWidth: 2))
-                        .onTapGesture { onSelect(it.g ?? it.id) }
+                    let on = selected == (it.g ?? it.id)
+                    ZStack {
+                        Color.clear.frame(width: 36, height: 36).contentShape(Circle())
+                        Circle().fill(Theme.color(it.severity)).frame(width: on ? 18 : 12, height: on ? 18 : 12)
+                            .overlay(Circle().stroke(.white, lineWidth: 2))
+                            .shadow(color: .black.opacity(on ? 0.3 : 0.15), radius: on ? 4 : 1.5, y: 1)
+                    }
+                    .onTapGesture { onSelect(it.g ?? it.id) }
                 }
             }
             ForEach(warns) { w in
@@ -515,9 +584,13 @@ struct RoadMap: View {
                         .stroke(Theme.color(.live), style: StrokeStyle(lineWidth: selected == w.id ? 9 : 5, lineCap: .round, lineJoin: .round))
                 }
                 Annotation("", coordinate: w.mid) {
-                    Circle().fill(Theme.color(.live)).frame(width: 12, height: 12)
-                        .overlay(Circle().stroke(.white, lineWidth: 2))
-                        .onTapGesture { onSelect(w.id) }
+                    ZStack {
+                        Color.clear.frame(width: 36, height: 36).contentShape(Circle())
+                        Circle().fill(Theme.color(.live)).frame(width: selected == w.id ? 18 : 12, height: selected == w.id ? 18 : 12)
+                            .overlay(Circle().stroke(.white, lineWidth: 2))
+                            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                    }
+                    .onTapGesture { onSelect(w.id) }
                 }
             }
         }

@@ -94,14 +94,14 @@ struct HomeView: View {
                     }
                 }
             }
-            .frame(height: 340)
+            .frame(height: 250)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             HStack(spacing: 14) {
                 legend(.voll, "Vollsperrung"); legend(.sperr, "Sperrung"); legend(.kurz, "kurzfristig"); legend(.live, "Stau")
                 Spacer()
             }
             .font(.caption).foregroundStyle(.secondary)
-            Text("Tipp auf eine Stelle der Karte, um zu sehen, was dort im Umkreis los ist.")
+            Text("Tipp auf eine Stelle der Karte, um zu sehen, was dort im Umkreis los ist. Zum Scrollen neben der Karte wischen.")
                 .font(.caption).foregroundStyle(.tertiary)
         }
     }
