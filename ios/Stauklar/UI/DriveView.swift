@@ -50,7 +50,9 @@ struct DriveView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        // Nur der Fahrmodus ist dunkel; preferredColorScheme würde in der Reiter-Ansicht die ganze App umfärben
+        .environment(\.colorScheme, .dark)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .navigationTitle("Fahrmodus")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.black, for: .navigationBar)

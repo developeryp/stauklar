@@ -350,16 +350,12 @@
     map.addControl(geo, 'top-right');
     if (navigator.permissions && navigator.permissions.query) {
       navigator.permissions.query({ name: 'geolocation' }).then(st => {
-        // Nur den blauen Standortpunkt zeigen, die Karte bleibt, wo sie ist (Übersicht oder verlinkte Meldung)
-        if (st.state === 'granted') map.once('load', () => {
-          geo.once('geolocate', () => {
-            const c = map.getCenter(), z = map.getZoom();
-            map.once('moveend', () => {
-              if (linkTarget) focusOnMap(linkTarget, false); else map.jumpTo({ center: c, zoom: z });
-            });
-          });
-          geo.trigger();
-        });
+        // Nur den blauen Standortpunkt einzeichnen, ohne die Karte zu bewegen (nicht geo.trigger(): das fliegt zum Standort)
+        if (st.state === 'granted') navigator.geolocation.getCurrentPosition(pos => {
+          const dot = document.createElement('div');
+          dot.className = 'maplibregl-user-location-dot';
+          new maplibregl.Marker({ element: dot }).setLngLat([pos.coords.longitude, pos.coords.latitude]).addTo(map);
+        }, () => {}, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
       }).catch(() => {});
     }
     map.touchZoomRotate.disableRotation();
