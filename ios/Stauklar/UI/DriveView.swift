@@ -65,7 +65,14 @@ struct DriveView: View {
     private var driveMap: some View {
         Map(position: $camera, interactionModes: [.pan, .zoom, .rotate]) {
             UserAnnotation()
-            // Meldungen der anderen Autobahnen in der Umgebung als Punkte; die eigene Strecke kommt als Linien
+            // Linien der anderen Autobahnen in der Umgebung, etwas zurückhaltender als die eigene Strecke
+            ForEach(model.otherItems, id: \.key) { o in
+                if o.item.geom.count > 1 {
+                    MapPolyline(coordinates: o.item.coordinates)
+                        .stroke(Theme.color(o.item.severity).opacity(0.7), style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
+                }
+            }
+            // Meldungen der anderen Autobahnen als antippbare Punkte
             ForEach(model.nearPoints, id: \.key) { p in
                 Annotation("", coordinate: p.coordinate) {
                     Button { preview = RoadTarget(road: p.road, item: p.id) } label: {
@@ -273,6 +280,9 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var aheadItems: Set<String> = []
     @Published var mapWarns: [Warn] = []
     @Published var nearPoints: [Point] = []
+    /// Heutige Meldungen der Nachbar-Autobahnen (mit Geometrie), für Linien auf der Karte
+    @Published var otherItems: [(key: String, item: Item)] = []
+    private var otherLoaded: Set<String> = []
     @Published var location: CLLocation?
     @Published var heading: Double = 0
     @Published var cameraTick = 0
@@ -325,6 +335,7 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         if roadID == nil || Date().timeIntervalSince(lastDetect) > 20 {
             lastDetect = Date()
             nearPoints = store.points.filter { $0.road != roadID && kilometers(here, $0.coordinate) < 40 }
+            loadOthers(Set(nearPoints.map(\.road)))
             var best: (String, Double)?
             for p in store.points {
                 let d = kilometers(here, p.coordinate)
@@ -385,6 +396,21 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         upcoming = list.sorted { $0.km < $1.km }
         aheadItems = Set(d.groups.filter { g in list.contains { $0.id == g.id } }.flatMap(\.items))
         stand = "Stand \(Date().formatted(date: .omitted, time: .shortened)) Uhr · \(upcoming.count) voraus"
+    }
+
+    /// Streckendaten der Nachbar-Autobahnen nachladen (einmal pro Autobahn), nur heutige Meldungen behalten
+    private func loadOthers(_ roads: Set<String>) {
+        for r in roads.subtracting(otherLoaded) {
+            otherLoaded.insert(r)
+            Task {
+                let slug = store?.road(r)?.slug ?? r.lowercased()
+                guard let d: RoadDetail = try? await API.shared.get("road/\(slug).json") else { return }
+                let today = Set(d.groups.filter(\.heute).flatMap(\.items))
+                let items = d.items.filter { today.contains($0.id) }.map { (key: "\(r)/\($0.id)", item: $0) }
+                otherItems.removeAll { $0.key.hasPrefix("\(r)/") }
+                otherItems.append(contentsOf: items)
+            }
+        }
     }
 
     /// Das dem Fahrer zugewandte Ende der Meldung (in Fahrtrichtung der Anfang)
