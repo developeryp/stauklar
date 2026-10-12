@@ -56,10 +56,20 @@ struct DriveView: View {
     private var driveMap: some View {
         Map(position: $camera, interactionModes: [.zoom]) {
             UserAnnotation()
+            // Solange keine Autobahn erkannt ist: Meldungen der Umgebung als Punkte, damit die Karte nie leer ist
+            ForEach(model.nearPoints, id: \.key) { p in
+                Annotation("", coordinate: p.coordinate) {
+                    Circle().fill(Theme.color(p.severity)).frame(width: 10, height: 10)
+                        .overlay(Circle().stroke(.white, lineWidth: 1.5))
+                        .opacity(p.heute ? 1 : 0.5)
+                }
+            }
+            // Alle heutigen Meldungen der Autobahn; was voraus liegt kräftig, der Rest gedämpft
             ForEach(model.mapItems) { it in
                 if it.geom.count > 1 {
+                    let ahead = model.aheadItems.contains(it.id)
                     MapPolyline(coordinates: it.coordinates)
-                        .stroke(Theme.color(it.severity), style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                        .stroke(Theme.color(it.severity).opacity(ahead ? 1 : 0.35), style: StrokeStyle(lineWidth: ahead ? 7 : 5, lineCap: .round, lineJoin: .round))
                 }
             }
             ForEach(model.mapWarns) { w in
@@ -73,20 +83,27 @@ struct DriveView: View {
         .frame(height: closeView ? 360 : 280)
         // Kamera: ca. 5 km Sicht, in Fahrtrichtung gedreht, folgt der Position
         .onChange(of: model.cameraTick) { _, _ in
-            guard following, let c = model.location?.coordinate else { return }
+            guard following, let here = model.location?.coordinate else { return }
+            // Ohne erkannte Autobahn: weit raus, damit die Meldungen der Umgebung zu sehen sind
+            guard model.roadID != nil, model.message == nil else {
+                withAnimation(.linear(duration: 1)) { camera = .camera(MapCamera(centerCoordinate: here, distance: 60_000, heading: 0, pitch: 0)) }
+                return
+            }
+            // Nah: Blickpunkt ca. 200 m voraus, damit das Auto unten im Bild steht wie bei einer Navigation
+            let c = closeView ? here.moved(meters: 200, heading: model.heading) : here
             withAnimation(.linear(duration: 1)) {
-                camera = .camera(MapCamera(centerCoordinate: c, distance: closeView ? 900 : 6500, heading: model.heading, pitch: closeView ? 60 : 0))
+                camera = .camera(MapCamera(centerCoordinate: c, distance: closeView ? 550 : 6500, heading: model.heading, pitch: closeView ? 65 : 0))
             }
         }
         .onChange(of: closeView) { _, _ in following = true; model.cameraTick += 1 }
         .overlay(alignment: .top) {
-            Picker("Ansicht", selection: $closeView) {
+            if model.roadID != nil { Picker("Ansicht", selection: $closeView) {
                 Text("Übersicht").tag(false)
                 Text("Nah").tag(true)
             }
             .pickerStyle(.segmented)
             .frame(width: 180)
-            .padding(.top, 10)
+            .padding(.top, 10) }
         }
         .overlay(alignment: .bottom) {
             // Nah-Ansicht: nächste Meldung mit großer Spuranzeige, wie ein Spurassistent
@@ -213,7 +230,9 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var icon = "location"
     @Published var stand = ""
     @Published var mapItems: [Item] = []
+    @Published var aheadItems: Set<String> = []
     @Published var mapWarns: [Warn] = []
+    @Published var nearPoints: [Point] = []
     @Published var location: CLLocation?
     @Published var heading: Double = 0
     @Published var cameraTick = 0
@@ -271,7 +290,10 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                 if d < 3, best == nil || d < best!.1 { best = (p.road, d) }
             }
             guard let (road, _) = best else {
-                if roadID == nil { message = "Keine Autobahn in der Nähe. Der Fahrmodus startet, sobald du auf einer Autobahn bist."; icon = "road.lanes" }
+                if roadID == nil {
+                    message = "Keine Autobahn in der Nähe. Der Fahrmodus startet, sobald du auf einer Autobahn bist."; icon = "road.lanes"
+                    nearPoints = store.points.filter { kilometers(here, $0.coordinate) < 25 }
+                }
                 return
             }
             if road != roadID {
@@ -281,6 +303,10 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             }
         }
         guard let d = detail, let axis = d.axis else { return }
+        nearPoints = []
+        let todayGroups = Set(d.groups.filter(\.heute).flatMap(\.items))
+        mapItems = d.items.filter { todayGroups.contains($0.id) }
+        mapWarns = d.warns
 
         // Fahrtrichtung: aus dem Kurs des GPS, sonst aus der Bewegung seit der letzten Position
         var course = loc.course >= 0 && loc.speed > 2 ? loc.course : -1.0
@@ -317,9 +343,7 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             list.append(Upcoming(id: w.id, km: km, title: w.title, label: w.text.first ?? "Stau oder Gefahr", when: "", severity: .live, lanes: [], laneText: "", active: true))
         }
         upcoming = list.sorted { $0.km < $1.km }
-        let ids = Set(d.groups.filter { g in list.contains { $0.id == g.id } }.flatMap(\.items))
-        mapItems = d.items.filter { ids.contains($0.id) }
-        mapWarns = d.warns.filter { w in list.contains { $0.id == w.id } }
+        aheadItems = Set(d.groups.filter { g in list.contains { $0.id == g.id } }.flatMap(\.items))
         stand = "Stand \(Date().formatted(date: .omitted, time: .shortened)) Uhr · \(upcoming.count) voraus"
     }
 
@@ -339,5 +363,15 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                 icon = "wifi.slash"
             }
         }
+    }
+}
+
+private extension CLLocationCoordinate2D {
+    /// Punkt in `meters` Entfernung in Richtung `heading` (Grad, 0 = Norden)
+    func moved(meters: Double, heading: Double) -> CLLocationCoordinate2D {
+        let rad = heading * .pi / 180
+        let dLat = meters * cos(rad) / 111_320
+        let dLon = meters * sin(rad) / (111_320 * cos(latitude * .pi / 180))
+        return CLLocationCoordinate2D(latitude: latitude + dLat, longitude: longitude + dLon)
     }
 }
