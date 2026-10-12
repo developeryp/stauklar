@@ -153,3 +153,44 @@ extension View {
         padding(16).background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
+
+/// Filter-Knopf für eine Art von Meldung (Karte und Liste)
+struct SevChip: View {
+    static let all: [(Severity, String)] = [(.voll, "Vollsperrung"), (.sperr, "Auf-/Abfahrt zu"), (.kurz, "Baustelle"), (.dauer, "Dauerbaustelle"), (.live, "Stau & Gefahr")]
+    let severity: Severity
+    let title: String
+    let on: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Circle().fill(on ? Theme.color(severity) : Color.secondary.opacity(0.4)).frame(width: 8, height: 8)
+                Text(title).font(.footnote.weight(.medium))
+            }
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(on ? Theme.color(severity).opacity(0.14) : Color(.secondarySystemBackground), in: Capsule())
+            .overlay(Capsule().stroke(on ? Theme.color(severity).opacity(0.5) : .clear, lineWidth: 1))
+            .foregroundStyle(on ? Color.primary : Color.secondary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+/// Reihe von Filter-Knöpfen, horizontal scrollbar
+struct SevChips: View {
+    @Binding var on: Set<Severity>
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(SevChip.all, id: \.0) { s, t in
+                    SevChip(severity: s, title: t, on: on.contains(s)) {
+                        if on.contains(s) { on.remove(s) } else { on.insert(s) }
+                    }
+                }
+            }
+        }
+    }
+}

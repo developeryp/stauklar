@@ -5,7 +5,7 @@ struct HomeView: View {
     @EnvironmentObject private var store: Store
     @ObservedObject private var push = PushManager.shared
     @EnvironmentObject private var nav: Nav
-    @AppStorage("mapFilter") private var mapFilterRaw = "kurz,live,sperr,voll"
+    @AppStorage("mapFilter2") private var mapFilterRaw = "*"
     @State private var query = ""
     @State private var camera: MapCameraPosition = .region(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 51.2, longitude: 10.4), span: MKCoordinateSpan(latitudeDelta: 8.2, longitudeDelta: 8.2)))
     /// Meter pro Bildschirmpunkt beim aktuellen Zoom, damit die Punkte immer gleich groß bleiben
@@ -82,7 +82,7 @@ struct HomeView: View {
                 let t = store.totals
                 HStack(spacing: 10) {
                     KPI(value: t.voll, label: "Vollsperrungen", color: Theme.color(.voll))
-                    KPI(value: t.kurz, label: "kurzfristig bis morgen früh", color: Theme.color(.kurz))
+                    KPI(value: t.kurz, label: "Baustellen bis morgen früh", color: Theme.color(.kurz))
                     KPI(value: t.live, label: "Staus & Gefahren", color: Theme.color(.live))
                 }
             }
@@ -92,13 +92,13 @@ struct HomeView: View {
     /// Deutschlandkarte: alles, was heute gilt, als farbige Punkte. Tipp auf die Karte zeigt den Umkreis dort.
     private var germanyMap: some View {
         let today = store.points.filter { $0.heute }
-        let pts = today.filter { mapFilter.contains($0.severity.rawValue) }
+        let pts = today.filter { mapFilter.wrappedValue.contains($0.severity) }
         return VStack(alignment: .leading, spacing: 10) {
             SectionTitle(text: "Deutschland heute", detail: pts.isEmpty ? nil : "\(pts.count)")
             MapReader { proxy in
                 Map(position: $camera, interactionModes: [.pan, .zoom]) {
                     UserAnnotation()
-                    ForEach(pts) { p in
+                    ForEach(thinned(pts)) { p in
                         // Radius in Metern läuft mit dem Zoom mit → Punkte bleiben immer ca. 4–5 Bildschirmpunkte groß
                         MapCircle(center: p.coordinate, radius: metersPerPoint * (p.severity == .kurz ? 3.5 : 4.5))
                             .foregroundStyle(Theme.color(p.severity).opacity(0.95))
@@ -129,41 +129,32 @@ struct HomeView: View {
             .frame(height: mapHeight)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             // Filter: Antippen blendet die Art ein oder aus
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach([(Severity.voll, "Vollsperrung"), (.sperr, "Sperrung"), (.kurz, "kurzfristig"), (.live, "Stau"), (.dauer, "Dauerbaustelle")], id: \.0) { s, t in
-                        filterChip(s, t)
-                    }
-                }
-            }
+            SevChips(on: mapFilter)
             Text("Tipp auf einen Punkt, um die Meldung zu öffnen, oder auf eine freie Stelle für den Umkreis dort. Zum Scrollen neben der Karte wischen.")
                 .font(.caption).foregroundStyle(.tertiary)
         }
     }
 
-    private func filterChip(_ s: Severity, _ t: String) -> some View {
-        let on = mapFilter.contains(s.rawValue)
-        return Button {
-            var f = mapFilter
-            if on { f.remove(s.rawValue) } else { f.insert(s.rawValue) }
-            mapFilterRaw = f.sorted().joined(separator: ",")
-        } label: {
-            HStack(spacing: 6) {
-                Circle().fill(on ? Theme.color(s) : Color.secondary.opacity(0.4)).frame(width: 8, height: 8)
-                Text(t).font(.footnote.weight(.medium))
-            }
-            .padding(.horizontal, 10).padding(.vertical, 6)
-            .background(on ? Theme.color(s).opacity(0.14) : Color(.secondarySystemBackground), in: Capsule())
-            .overlay(Capsule().stroke(on ? Theme.color(s).opacity(0.5) : .clear, lineWidth: 1))
-            .foregroundStyle(on ? Color.primary : Color.secondary)
+    /// Punkte, die auf dem Bildschirm übereinander lägen, zu einem zusammenfassen (der wichtigste bleibt).
+    /// Hält die Karte flüssig, auch wenn alle Dauerbaustellen eingeblendet sind; beim Hineinzoomen werden es wieder mehr.
+    private func thinned(_ pts: [Point]) -> [Point] {
+        let cell = metersPerPoint * 6 / 111_000          // Rastergröße in Grad, ca. 6 Bildschirmpunkte
+        guard cell > 0 else { return pts }
+        var best: [Int64: Point] = [:]
+        for p in pts {
+            let k = Int64((p.lat / cell).rounded(.down)) << 32 | Int64((p.lon / cell).rounded(.down)) & 0xffffffff
+            if let o = best[k], o.severity.rank <= p.severity.rank { continue }
+            best[k] = p
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(t)
-        .accessibilityAddTraits(on ? .isSelected : [])
+        return best.values.sorted { $0.severity.rank > $1.severity.rank }   // Wichtiges zuletzt, also obenauf
     }
 
     /// Welche Arten auf der Deutschlandkarte sichtbar sind (gespeichert)
-    private var mapFilter: Set<String> { Set(mapFilterRaw.components(separatedBy: ",").filter { !$0.isEmpty }) }
+    private var mapFilter: Binding<Set<Severity>> {
+        Binding(
+            get: { mapFilterRaw == "*" ? Set(Severity.allCases) : Set(mapFilterRaw.components(separatedBy: ",").compactMap(Severity.init(rawValue:))) },
+            set: { mapFilterRaw = $0.count == Severity.allCases.count ? "*" : $0.map(\.rawValue).sorted().joined(separator: ",") })
+    }
 
     private var favorites: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -292,7 +283,7 @@ struct RoadRow: View {
                     Text(road.lage.components(separatedBy: ". ").first ?? road.lage)
                         .font(.caption).foregroundStyle(.secondary).lineLimit(2)
                 } else {
-                    Text("\(road.voll) voll gesperrt · \(road.kurz) kurzfristig · \(road.live) Staus")
+                    Text("\(road.voll) voll gesperrt · \(road.kurz) Baustellen · \(road.live) Staus")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

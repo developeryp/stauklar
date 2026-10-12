@@ -202,7 +202,8 @@ def build_services(road):
 # ---------- Aufbereitung für die Darstellung ----------
 
 WD_LONG = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
-SEV_LABEL = {"voll": "Vollsperrung", "sperr": "Sperrung", "kurz": "Kurzfristige Baustelle", "dauer": "Dauerbaustelle", "live": "Verkehrsmeldung"}
+SEV_LABEL = {"voll": "Vollsperrung", "sperr": "Auf-/Abfahrt gesperrt", "kurz": "Baustelle", "dauer": "Dauerbaustelle", "live": "Verkehrsmeldung"}
+SEV_CHIPS = (("voll", "Vollsperrung"), ("sperr", "Auf-/Abfahrt zu"), ("kurz", "Baustelle"), ("dauer", "Dauerbaustelle"), ("live", "Stau & Gefahr"))
 SEV_RANK = {"dauer": 0, "kurz": 1, "sperr": 2, "voll": 3, "live": 4}
 
 
@@ -733,7 +734,7 @@ def lage(road, items, warns):
         pl = [p for i in short for p in places_of(i["title"])]
         hot = max(set(pl), key=pl.count) if pl else ""
         where = f" Am meisten los ist rund um {hot}." if hot and pl.count(hot) >= 2 else ""
-        out.append(f"Bis morgen früh gibt es {plural(len(short), 'kurzfristige Sperrung oder Baustelle', 'kurzfristige Sperrungen und Baustellen')}.{when}{where}")
+        out.append(f"Bis morgen früh gibt es {plural(len(short), 'Baustelle oder gesperrte Auf-/Abfahrt', 'Baustellen und gesperrte Auf-/Abfahrten')}.{when}{where}")
     if warns:
         out.append(f"Gerade {'liegt' if len(warns) == 1 else 'liegen'} {plural(len(warns), 'Meldung', 'Meldungen')} zu Stau, Unfall oder Gefahren vor.")
     if dauer:
@@ -858,9 +859,9 @@ def road_page(road, d, near):
         ex = "; ".join(f"{i['title']} ({human_when(i['show'])})" for i in closed[:3])
         faq.append((f"Ist die {road} heute gesperrt?", f"Ja, heute und heute Nacht gibt es {plural(len(closed), 'Sperrung', 'Sperrungen')}, zum Beispiel: {ex}."))
     elif n_short:
-        faq.append((f"Ist die {road} heute gesperrt?", f"Eine Sperrung ist nicht gemeldet, aber {plural(n_short, 'kurzfristige Baustelle', 'kurzfristige Baustellen')} bis morgen früh, oft mit gesperrten Spuren."))
+        faq.append((f"Ist die {road} heute gesperrt?", f"Eine Sperrung ist nicht gemeldet, aber {plural(n_short, 'Baustelle', 'Baustellen')} bis morgen früh, oft mit gesperrten Spuren."))
     else:
-        faq.append((f"Ist die {road} heute gesperrt?", f"Für heute sind auf der {road} keine kurzfristigen Sperrungen gemeldet (Stand {NOW:%d.%m.%Y, %H:%M} Uhr)."))
+        faq.append((f"Ist die {road} heute gesperrt?", f"Für heute sind auf der {road} keine Sperrungen oder Baustellen gemeldet (Stand {NOW:%d.%m.%Y, %H:%M} Uhr)."))
     faq.append((f"Wie viele Baustellen gibt es auf der {road}?", f"Heute gelten {plural(len(today), 'Baustelle oder Sperrung', 'Baustellen und Sperrungen')}, davon {n_dauer} Dauerbaustellen. In den nächsten 7 Tagen sind es {len(week)}."))
     longest = max((i for i in items if i.get("total")), key=lambda i: i["total"], default=None)
     if longest:
@@ -888,7 +889,7 @@ def road_page(road, d, near):
     <p class="lage">{e(lage_txt)}</p>
     <ul class="kpis">
       <li class="k-voll"><b>{n_full}</b>Vollsperrungen</li>
-      <li class="k-kurz"><b>{n_short}</b>kurzfristig bis morgen früh</li>
+      <li class="k-kurz"><b>{n_short}</b>Baustellen bis morgen früh</li>
       <li class="k-live"><b id="live-count">{len(warns)}</b>Staus &amp; Gefahren</li>
       <li class="k-dauer"><b>{n_dauer}</b>Dauerbaustellen</li>
     </ul>
@@ -898,7 +899,7 @@ def road_page(road, d, near):
 <div class="controls" id="controls"><div class="controls-in">
   {seg("w", [("heute", "Heute"), ("woche", "7 Tage"), ("geplant", "Geplant"), ("alle", "Alles")], default_w)}
   {seg("d", dir_opts, "") if len(dir_opts) > 2 else ''}
-  <label class="tog"><input type="checkbox" id="dauer"{"" if (n_short or n_full or warns) else " checked"}><span class="tog-ui" aria-hidden="true"></span>Dauerbaustellen</label>
+  <div class="legend chips" id="sevf" role="group" aria-label="Nach Art filtern">{''.join(f'<button type="button" class="chip" aria-pressed="true" data-sev="{k}"><i class="sw {k}"></i>{t}</button>' for k, t in SEV_CHIPS)}</div>
   <button type="button" class="locate" id="locate"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M14.3 1.7 1.9 6.6c-.7.3-.6 1.3.1 1.5l5 1.4 1.4 5c.2.7 1.2.8 1.5.1l4.9-12.4c.3-.7-.4-1.4-1.1-1.1z" fill="currentColor"/></svg><span class="lbl">In meiner Nähe</span></button>
   <label class="find"><span class="sr">Ort oder Abschnitt suchen</span><input id="find" type="search" placeholder="Stadt oder Anschlussstelle, z. B. {e((places_of(items[0]['title']) or ['Kassel'])[0]) if items else 'Kassel'}" autocomplete="off"></label>
 </div></div>
@@ -906,7 +907,7 @@ def road_page(road, d, near):
 <div class="split" data-road="{e(road)}" data-ax="{e(json.dumps(d['ax'])) if d['ax'] else ''}" data-labels="{e(json.dumps(labels, ensure_ascii=False))}">
   <div class="mapcol"><div id="map" data-src="map.json" role="region" aria-label="Karte der {e(road)}"></div>
     <button type="button" class="hidden-note" id="hidden-note" hidden>Dauerbaustellen ausgeblendet · <b>Einblenden</b></button>
-    <div class="legend"><span><i class="sw voll"></i>Vollsperrung</span><span><i class="sw sperr"></i>Sperrung</span><span><i class="sw kurz"></i>kurzfristig</span><span><i class="sw dauer"></i>Dauerbaustelle</span><span><i class="sw live"></i>Stau/Gefahr</span></div>
+    <div class="legend"><span><i class="sw voll"></i>Vollsperrung</span><span><i class="sw sperr"></i>Auf-/Abfahrt zu</span><span><i class="sw kurz"></i>Baustelle</span><span><i class="sw dauer"></i>Dauerbaustelle</span><span><i class="sw live"></i>Stau &amp; Gefahr</span></div>
   </div>
   <div class="listcol">
     <h2 class="route-h">Entlang der Strecke <span class="route-n" id="route-n"></span></h2>
@@ -921,8 +922,8 @@ def road_page(road, d, near):
 <details class="more glossar"><summary>Was bedeuten die Begriffe?</summary>
 <dl class="gl">
 <div><dt><i class="sw voll"></i>Vollsperrung</dt><dd>In dieser Richtung geht nichts mehr durch. Umleitung nötig.</dd></div>
-<div><dt><i class="sw sperr"></i>Sperrung</dt><dd>Eine Auf- oder Abfahrt oder ein kurzer Abschnitt ist dicht, meist nachts für wenige Stunden.</dd></div>
-<div><dt><i class="sw kurz"></i>Kurzfristige Baustelle</dt><dd>Höchstens drei Tage, oft nur eine Nacht. Spuren sind verengt oder gesperrt, es geht aber durch.</dd></div>
+<div><dt><i class="sw sperr"></i>Auf-/Abfahrt zu</dt><dd>Eine Auf- oder Abfahrt ist gesperrt, meist nachts für wenige Stunden. Auf der Autobahn selbst geht es weiter.</dd></div>
+<div><dt><i class="sw kurz"></i>Baustelle</dt><dd>Höchstens drei Tage, oft nur eine Nacht. Spuren sind verengt oder gesperrt, es geht aber durch.</dd></div>
 <div><dt><i class="sw dauer"></i>Dauerbaustelle</dt><dd>Läuft Wochen bis Jahre. Man kennt sie meist schon, darum ist sie standardmäßig ausgeblendet.</dd></div>
 <div><dt><i class="sw live"></i>Stau oder Gefahr</dt><dd>Aktuelle Meldung der Autobahn GmbH, alle zwei Minuten neu geladen.</dd></div>
 <div><dt>Spurgrafik</dt><dd>Zeigt die Fahrbahn in Fahrtrichtung: Pfeil = Spur frei, rot-weiß = Spur gesperrt, schmaler Streifen = Standstreifen, gelbe Linie = Mittelstreifen.</dd></div>
@@ -968,7 +969,7 @@ def index_page(roads, data):
         cards.append(f"""<a class="hot st-{st}" href="/{slug(r)}/">
 <span class="hot-top"><span class="shield lg">{e(r)}</span><span class="status"><i></i>{st_txt}</span></span>
 <span class="hot-txt">{e(lage(r, d['items'], d['warns']).split('. ')[0].rstrip('.'))}.</span>
-<span class="hot-n"><span><b>{nf}</b> voll gesperrt</span><span><b>{ns}</b> kurzfristig</span><span><b>{len(d['warns'])}</b> Staus</span></span></a>""")
+<span class="hot-n"><span><b>{nf}</b> voll gesperrt</span><span><b>{ns}</b> Baustellen</span><span><b>{len(d['warns'])}</b> Staus</span></span></a>""")
 
     tiles = []
     for r in roads:
@@ -993,7 +994,7 @@ def index_page(roads, data):
     </div>
     <aside class="now-box" aria-label="Lage in Deutschland">
       <p class="now-h">Deutschland bis morgen früh</p>
-      <ul class="kpis stack"><li class="k-voll"><b>{n_full}</b>Vollsperrungen</li><li class="k-kurz"><b>{n_short}</b>kurzfristige Sperrungen &amp; Baustellen</li><li class="k-live"><b>{n_warn}</b>Staus &amp; Gefahren gerade</li></ul>
+      <ul class="kpis stack"><li class="k-voll"><b>{n_full}</b>Vollsperrungen</li><li class="k-kurz"><b>{n_short}</b>Baustellen &amp; gesperrte Auf-/Abfahrten</li><li class="k-live"><b>{n_warn}</b>Staus &amp; Gefahren gerade</li></ul>
     </aside>
   </div>
 </section>
@@ -1001,7 +1002,7 @@ def index_page(roads, data):
 <section class="block wide" id="karte">
   <div class="today-head"><h2>Karte: heute und heute Nacht</h2><p class="sub">Hineinzoomen zeigt den genauen Abschnitt, Antippen die Details.</p></div>
   <div id="map" class="map-home" data-src="/heute.json" role="region" aria-label="Deutschlandkarte"></div>
-  <div class="legend chips" id="sevf" role="group" aria-label="Karte filtern">{''.join(f'<button type="button" class="chip" aria-pressed="true" data-sev="{k}"><i class="sw {k}"></i>{t}</button>' for k, t in (("voll", "Vollsperrung"), ("sperr", "Sperrung"), ("kurz", "kurzfristig"), ("live", "Stau/Gefahr")))}<span class="hint">Antippen zum Ein- und Ausblenden</span></div>
+  <div class="legend chips" id="sevf" role="group" aria-label="Karte filtern">{''.join(f'<button type="button" class="chip" aria-pressed="true" data-sev="{k}"><i class="sw {k}"></i>{t}</button>' for k, t in SEV_CHIPS if k != "dauer")}<span class="hint">Antippen zum Ein- und Ausblenden</span></div>
 </section>
 
 <section class="block wide nah" id="nah" hidden aria-live="polite"></section>
@@ -1025,7 +1026,7 @@ def index_page(roads, data):
 </section>
 </main>
 <script src="/assets/search.js?v={VER}" defer></script>"""
-    desc = f"Heute {n_full} Vollsperrungen, {n_short} kurzfristige Sperrungen und {n_warn} Staus auf deutschen Autobahnen. Jeder Abschnitt auf der Karte, mit Spurgrafik. Stand {NOW:%d.%m.%Y, %H:%M} Uhr."
+    desc = f"Heute {n_full} Vollsperrungen, {n_short} Baustellen und {n_warn} Staus auf deutschen Autobahnen. Jeder Abschnitt auf der Karte, mit Spurgrafik. Stand {NOW:%d.%m.%Y, %H:%M} Uhr."
     jsonld = [{"@context": "https://schema.org", "@type": "WebSite", "name": SITE_NAME, "url": SITE_URL + "/", "inLanguage": "de-DE"}]
     return page("Stauklar: Sperrungen, Baustellen & Staus auf der Karte", desc, "/", body, jsonld, extra_head=MAP_HEAD, body_class="p-home")
 
@@ -1333,12 +1334,12 @@ def city_page(city, roads, data):
     if n_full:
         parts.append(plural(n_full, "Vollsperrung", "Vollsperrungen"))
     if n_short:
-        parts.append(f"{n_short} kurzfristige {'Sperrung oder Baustelle' if n_short == 1 else 'Sperrungen und Baustellen'}")
+        parts.append(f"{n_short} {'Baustelle oder gesperrte Auf-/Abfahrt' if n_short == 1 else 'Baustellen und gesperrte Auf-/Abfahrten'}")
     if warns:
         parts.append(plural(len(warns), "aktuelle Stau- oder Gefahrenmeldung", "aktuelle Stau- und Gefahrenmeldungen"))
     joined = " und ".join(parts) if len(parts) < 3 else ", ".join(parts[:-1]) + " und " + parts[-1]
     lage_txt = (f"Im Umkreis von {NEAR_CITY_KM} km um {city} gibt es heute " + joined + "."
-                if parts else f"Im Umkreis von {NEAR_CITY_KM} km um {city} ist heute nichts Kurzfristiges gemeldet.")
+                if parts else f"Im Umkreis von {NEAR_CITY_KM} km um {city} ist heute keine Sperrung und keine Baustelle gemeldet.")
     if dauer:
         lage_txt += f" Dazu {plural(len(dauer), 'Dauerbaustelle', 'Dauerbaustellen')}."
     if roads_near:
@@ -1355,15 +1356,15 @@ def city_page(city, roads, data):
     <div class="hero-top"><span class="status"><i></i>{e(city)} · {NEAR_CITY_KM} km Umkreis</span></div>
     <h1>Rund um {e(city)}: Sperrungen und Baustellen heute</h1>
     <p class="lage">{e(lage_txt)}</p>
-    <ul class="kpis"><li class="k-voll"><b>{n_full}</b>Vollsperrungen</li><li class="k-kurz"><b>{n_short}</b>kurzfristig bis morgen früh</li><li class="k-live"><b>{len(warns)}</b>Staus &amp; Gefahren</li><li class="k-dauer"><b>{len(dauer)}</b>Dauerbaustellen</li></ul>
+    <ul class="kpis"><li class="k-voll"><b>{n_full}</b>Vollsperrungen</li><li class="k-kurz"><b>{n_short}</b>Baustellen bis morgen früh</li><li class="k-live"><b>{len(warns)}</b>Staus &amp; Gefahren</li><li class="k-dauer"><b>{len(dauer)}</b>Dauerbaustellen</li></ul>
   </div>
 </section>
 <div class="split one">
   <div class="mapcol"><div id="map" data-src="/heute.json" data-center="{lat},{lon}" data-radius="{NEAR_CITY_KM}" role="region" aria-label="Karte rund um {e(city)}"></div>
-  <div class="legend"><span><i class="sw voll"></i>Vollsperrung</span><span><i class="sw sperr"></i>Sperrung</span><span><i class="sw kurz"></i>kurzfristig</span><span><i class="sw live"></i>Stau/Gefahr</span><span class="hint">Antippen für Details</span></div></div>
+  <div class="legend"><span><i class="sw voll"></i>Vollsperrung</span><span><i class="sw sperr"></i>Auf-/Abfahrt zu</span><span><i class="sw kurz"></i>Baustelle</span><span><i class="sw live"></i>Stau &amp; Gefahr</span><span class="hint">Antippen für Details</span></div></div>
   <div class="listcol">
     <h2 class="route-h">Jetzt und heute Nacht <span class="route-n">{len(today) + len(warns)}</span></h2>
-    {ev_list([warn_card(r, w) for _, r, w in warns] + [ev_card(r, g) for _, r, g in today[:40]], "Für heute ist im Umkreis nichts Kurzfristiges gemeldet. Gute Fahrt!")}
+    {ev_list([warn_card(r, w) for _, r, w in warns] + [ev_card(r, g) for _, r, g in today[:40]], "Für heute ist im Umkreis keine Sperrung und keine Baustelle gemeldet. Gute Fahrt!")}
     {f'<h2 class="route-h">Nächste 7 Tage <span class="route-n">{len(week)}</span></h2>{ev_list([ev_card(r, g) for _, r, g in week[:40]])}' if week else ''}
     {f'<details class="more"><summary>{plural(len(dauer), "Dauerbaustelle", "Dauerbaustellen")} im Umkreis</summary>{ev_list([ev_card(r, g) for _, r, g in dauer[:60]])}</details>' if dauer else ''}
   </div>
@@ -1539,7 +1540,7 @@ def main():
                                it["title"], human_when(it["show"]), it.get("label") or SEV_LABEL[it["sev"]], 1 if it["active"] else 0])
         for w in data[r]["warns"]:
             if w["lat"]:
-                punkte.append([r, w["id"], round(w["lat"], 4), round(w["lon"], 4), "live", 1, w["title"], (w["text"] or ["aktuell"])[0], "Stau/Gefahr", 1])
+                punkte.append([r, w["id"], round(w["lat"], 4), round(w["lon"], 4), "live", 1, w["title"], (w["text"] or ["aktuell"])[0], "Stau oder Gefahr", 1])
     (DIST / "punkte.json").write_text(json.dumps(punkte, ensure_ascii=False, separators=(",", ":")))
     germany = {"type": "FeatureCollection", "features": []}
     for r in roads:

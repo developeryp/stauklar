@@ -82,18 +82,43 @@
   const road = split && split.dataset.road;
   const ax = split && split.dataset.ax ? JSON.parse(split.dataset.ax) : null;
   const labels = split ? JSON.parse(split.dataset.labels || '{}') : {};
-  const state = { w: 'heute', d: '', q: '', dauer: !!(document.getElementById('dauer') || {}).checked, near: null };
+  const state = { w: 'heute', d: '', q: '', near: null };
   const NEAR_KM = 30;
+  // Filter nach Art (Vollsperrung, Auf-/Abfahrt zu, Baustelle, Dauerbaustelle, Stau & Gefahr); standardmäßig alles sichtbar
+  const sevBox = $('#sevf');
+  const sevKey = route ? 'sevf-road' : 'sevf-home';
+  let sevOn = null;   // null = alles
+  const sevOf = li => ([...li.classList].find(c => c.startsWith('sev-')) || 'sev-').slice(4);
+  const sevOk = li => !sevOn || sevOn.includes(sevOf(li));
+  function syncSev() { if (sevBox) $$('.chip', sevBox).forEach(b => b.setAttribute('aria-pressed', String(!sevOn || sevOn.includes(b.dataset.sev)))); }
+  function showAllSev() { sevOn = null; try { localStorage.removeItem(sevKey); } catch (err) {} syncSev(); }
+  if (sevBox) {
+    try { const v = JSON.parse(localStorage.getItem(sevKey) || 'null'); if (Array.isArray(v)) sevOn = v; } catch (err) {}
+    syncSev();
+    AB.sevOn = sevOn;
+    sevBox.addEventListener('click', ev => {
+      const b = ev.target.closest('.chip');
+      if (!b) return;
+      const all = $$('.chip', sevBox).map(x => x.dataset.sev);
+      const cur = new Set(sevOn || all);
+      cur.has(b.dataset.sev) ? cur.delete(b.dataset.sev) : cur.add(b.dataset.sev);
+      sevOn = cur.size === all.length ? null : [...cur];
+      try { sevOn ? localStorage.setItem(sevKey, JSON.stringify(sevOn)) : localStorage.removeItem(sevKey); } catch (err) {}
+      syncSev();
+      AB.sevOn = sevOn;
+      if (route) apply(true); else { if (map && map.getLayer('lines')) setFilters(); if (AB.lastNear && !$('#nah').hidden) AB.lastNear(); }
+    });
+  }
+
   $$('.seg').forEach(seg => {
     const on = $('[aria-checked="true"]', seg);
     if (on) state[seg.dataset.seg] = on.dataset.v;
   });
 
   // ---------- Filter ----------
-  // Dauerbaustellen ändern sich kaum: standardmäßig ausgeblendet, damit das Neue von heute oben steht
-  const matches = (li, w, d, q, ignoreDauer) =>
+  const matches = (li, w, d, q, ignoreSev) =>
     li.dataset.w.split(' ').includes(w) && (!d || !li.dataset.d || li.dataset.d.split(' ').includes(d)) && (!q || norm(li.dataset.q).includes(q))
-    && (ignoreDauer || state.dauer || !li.classList.contains('sev-dauer'))
+    && (ignoreSev || sevOk(li))
     && (!state.near || nearLi(li, state.near.r));
   const llOf = li => { const [lat, lon] = (li.dataset.ll || '0,0').split(',').map(Number); return { lat, lon }; };
   function nearLi(li, r) {
@@ -117,12 +142,12 @@
       n.textContent = stops.filter(li => matches(li, n.dataset.n, state.d, state.q)).length;
     });
     $('#route-n').textContent = ids.length;
-    // Sichtbar machen, was der Dauerbaustellen-Schalter gerade versteckt
-    const hiddenDauer = state.dauer ? 0 : stops.filter(li => li.classList.contains('sev-dauer') && matches(li, state.w, state.d, state.q, true)).length;
+    // Sichtbar machen, was die Filter-Knöpfe gerade verstecken
+    const hiddenDauer = sevOn ? stops.filter(li => !sevOk(li) && matches(li, state.w, state.d, state.q, true)).length : 0;
     const note = $('#hidden-note');
     if (note) {
       note.hidden = hiddenDauer === 0;
-      note.innerHTML = `${hiddenDauer} Dauerbaustelle${hiddenDauer === 1 ? '' : 'n'} ausgeblendet · <b>Einblenden</b>`;
+      note.innerHTML = `${hiddenDauer} ausgeblendet · <b>Alle einblenden</b>`;
     }
     $('#route-n').textContent = ids.length + (hiddenDauer ? ` · ${hiddenDauer} ausgeblendet` : '');
     $('#empty').hidden = ids.length > 0;
@@ -147,10 +172,9 @@
     apply(true);
   }));
   const setW = w => { state.w = w; $$('[data-seg="w"] button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === w))); };
-  const dauerBox = $('#dauer');
-  if (dauerBox) dauerBox.addEventListener('change', () => { state.dauer = dauerBox.checked; apply(true); });
+
   const hiddenNote = $('#hidden-note');
-  if (hiddenNote && dauerBox) hiddenNote.addEventListener('click', () => { dauerBox.checked = true; state.dauer = true; apply(true); });
+  if (hiddenNote) hiddenNote.addEventListener('click', () => { showAllSev(); apply(true); });
   const find = $('#find');
   const locBtn = $('#locate');
   const LOC_LABEL = 'In meiner Nähe';
@@ -196,9 +220,9 @@
         box.innerHTML = `${isMe ? 'Du bist nicht in der Nähe' : `${esc(n.name)} liegt nicht an`} der ${esc(road)}.
           <a class="empty-go" href="${nearHref}">Alle Autobahnen rund um ${isMe ? 'dich' : esc(n.name)} ansehen →</a>`;
       } else {
-        box.innerHTML = `Rund um ${isMe ? 'dich' : esc(n.name)} ist auf der ${esc(road)} ${state.w === 'heute' ? 'heute' : 'in diesem Zeitraum'} nichts gemeldet${state.dauer ? '' : ' (Dauerbaustellen ausgeblendet)'}.
+        box.innerHTML = `Rund um ${isMe ? 'dich' : esc(n.name)} ist auf der ${esc(road)} ${state.w === 'heute' ? 'heute' : 'in diesem Zeitraum'} nichts gemeldet${sevOn ? ' (einige Arten ausgeblendet)' : ''}.
           <button type="button" class="empty-go linkish" id="show-all">Alle Meldungen in der Nähe zeigen</button>`;
-        $('#show-all').addEventListener('click', () => { setW('alle'); if (dauerBox) { dauerBox.checked = true; state.dauer = true; } apply(true); });
+        $('#show-all').addEventListener('click', () => { setW('alle'); showAllSev(); apply(true); });
       }
       return;
     }
@@ -235,26 +259,6 @@
   let map = null, data = { type: 'FeatureCollection', features: [] }, visibleIds = null, popup = null;
 
   const colorExpr = ['match', ['get', 'sev'], ...Object.entries(COLORS).flat(), '#888'];
-
-  // Filter der Startseiten-Karte nach Art (Vollsperrung, Sperrung, kurzfristig, Stau)
-  const sevBox = $('#sevf');
-  let sevOn = null;
-  if (sevBox) {
-    try { const s = JSON.parse(localStorage.getItem('sevf') || 'null'); if (Array.isArray(s)) sevOn = s; } catch (err) {}
-    const sync = () => $$('.chip', sevBox).forEach(b => b.setAttribute('aria-pressed', String(!sevOn || sevOn.includes(b.dataset.sev))));
-    sync();
-    sevBox.addEventListener('click', ev => {
-      const b = ev.target.closest('.chip');
-      if (!b) return;
-      const all = $$('.chip', sevBox).map(x => x.dataset.sev);
-      const cur = new Set(sevOn || all);
-      cur.has(b.dataset.sev) ? cur.delete(b.dataset.sev) : cur.add(b.dataset.sev);
-      sevOn = cur.size === all.length ? null : [...cur];
-      try { localStorage.setItem('sevf', JSON.stringify(sevOn)); } catch (err) {}
-      sync();
-      if (map && map.getLayer('lines')) setFilters();
-    });
-  }
 
   function setFilters() {
     const base = visibleIds ? ['in', ['get', 'g'], ['literal', visibleIds]] : true;
@@ -300,7 +304,7 @@
     if (!li) return;
     if (li.hidden) { // Eintrag liegt außerhalb des Filters → Filter öffnen
       state.w = 'alle'; state.d = ''; state.q = '';
-      if (li.classList.contains('sev-dauer') && dauerBox) { dauerBox.checked = true; state.dauer = true; }
+      if (!sevOk(li)) { sevOn = [...new Set([...(sevOn || []), sevOf(li)])]; syncSev(); }
       if (find) find.value = '';
       $$('.seg button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === state[b.closest('.seg').dataset.seg])));
       apply(false);

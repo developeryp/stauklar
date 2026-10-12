@@ -11,10 +11,12 @@ struct NearbyView: View {
     @State private var radius = 30.0
     @State private var camera: MapCameraPosition = .automatic
     @State private var location = LocationService()
+    /// Sichtbare Arten für Karte und Liste; standardmäßig alles
+    @State private var sevOn: Set<Severity> = Set(Severity.allCases)
 
     private var hits: [(point: Point, km: Double)] {
         guard let center else { return [] }
-        return store.nearby(center, km: radius)
+        return store.nearby(center, km: radius).filter { sevOn.contains($0.point.severity) }
     }
 
     var body: some View {
@@ -72,8 +74,10 @@ struct NearbyView: View {
             .frame(height: 260)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
+            SevChips(on: $sevOn)
+
             Text(relevant.isEmpty
-                 ? "Im Umkreis von \(Int(radius)) km ist heute nichts Kurzfristiges gemeldet. Gute Fahrt!"
+                 ? "Im Umkreis von \(Int(radius)) km ist heute keine Sperrung und keine Baustelle gemeldet. Gute Fahrt!"
                  : "\(relevant.count) \(relevant.count == 1 ? "Meldung" : "Meldungen") für heute und heute Nacht im Umkreis von \(Int(radius)) km, die nächste zuerst.")
                 .font(.subheadline).foregroundStyle(.secondary)
 

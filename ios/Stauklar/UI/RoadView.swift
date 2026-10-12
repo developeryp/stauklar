@@ -13,7 +13,8 @@ struct RoadView: View {
     @State private var failed = false
     @State private var when: When = .heute
     @State private var dir = ""
-    @State private var showDauer = false
+    /// Sichtbare Arten; standardmäßig alles
+    @State private var sevOn: Set<Severity> = Set(Severity.allCases)
     @State private var expanded: Set<String> = []
     @State private var selected: String?
     @State private var camera: MapCameraPosition = .automatic
@@ -60,7 +61,6 @@ struct RoadView: View {
             var d: RoadDetail = try await API.shared.get("road/\(slug).json")
             if let live = await Live.warnings(for: roadID, axis: d.axis) { d.warns = live }
             detail = d
-            showDauer = d.voll == 0 && d.kurz == 0 && d.warns.isEmpty
             if visible(d).isEmpty && when == .heute { when = d.groups.contains { $0.woche } ? .woche : .alle }
             fitAll(d)
             if let fi = focusItem { openItem(fi, in: d) }
@@ -73,7 +73,7 @@ struct RoadView: View {
 
     private func matches(_ g: Group, _ d: RoadDetail) -> Bool {
         let w = Self.inWindow(g, when)
-        return w && (dir.isEmpty || g.d.isEmpty || g.d.contains(dir)) && (showDauer || g.severity != .dauer)
+        return w && (dir.isEmpty || g.d.isEmpty || g.d.contains(dir)) && sevOn.contains(g.severity)
     }
 
     /// Einzelmeldungen, die zu den sichtbaren Maßnahmen gehören (für die Karte)
@@ -98,7 +98,7 @@ struct RoadView: View {
     }
 
     private func visibleWarns(_ d: RoadDetail) -> [Warn] {
-        if when == .geplant { return [] }
+        if when == .geplant || !sevOn.contains(.live) { return [] }
         let list = d.warns.filter { dir.isEmpty || $0.d.isEmpty || $0.d == dir }.sorted { $0.t < $1.t }
         return dir == "minus" ? list.reversed() : list
     }
@@ -106,16 +106,17 @@ struct RoadView: View {
     private func count(_ w: When, _ d: RoadDetail) -> Int {
         d.groups.filter { g in
             let m = Self.inWindow(g, w)
-            return m && (dir.isEmpty || g.d.isEmpty || g.d.contains(dir)) && (showDauer || g.severity != .dauer)
-        }.count + (w == .geplant ? 0 : d.warns.count)
+            return m && (dir.isEmpty || g.d.isEmpty || g.d.contains(dir)) && sevOn.contains(g.severity)
+        }.count + (w == .geplant || !sevOn.contains(.live) ? 0 : d.warns.count)
     }
 
     // MARK: - Inhalt
 
-    /// Dauerbaustellen, die der Schalter gerade versteckt (im aktuellen Zeitraum/Richtung)
+    /// Meldungen, die die Filter-Knöpfe gerade verstecken (im aktuellen Zeitraum/Richtung)
     private func hiddenDauer(_ d: RoadDetail) -> Int {
-        guard !showDauer else { return 0 }
-        return d.groups.filter { g in g.severity == .dauer && Self.inWindow(g, when) && (dir.isEmpty || g.d.isEmpty || g.d.contains(dir)) }.count
+        let g = d.groups.filter { g in !sevOn.contains(g.severity) && Self.inWindow(g, when) && (dir.isEmpty || g.d.isEmpty || g.d.contains(dir)) }.count
+        let w = sevOn.contains(.live) || when == .geplant ? 0 : d.warns.filter { dir.isEmpty || $0.d.isEmpty || $0.d == dir }.count
+        return g + w
     }
 
     private func content(_ d: RoadDetail) -> some View {
@@ -184,7 +185,7 @@ struct RoadView: View {
                 .fixedSize(horizontal: false, vertical: true)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                 KPI(value: d.voll, label: "Vollsperrungen", color: Theme.color(.voll))
-                KPI(value: d.kurz, label: "kurzfristig bis morgen früh", color: Theme.color(.kurz))
+                KPI(value: d.kurz, label: "Baustellen bis morgen früh", color: Theme.color(.kurz))
                 KPI(value: d.warns.count, label: "Staus & Gefahren", color: Theme.color(.live))
                 KPI(value: d.dauer, label: "Dauerbaustellen", color: Theme.color(.dauer))
             }
@@ -276,25 +277,22 @@ struct RoadView: View {
                     }
                     .tint(.primary)
                 }
-                Toggle(isOn: $showDauer) { Text("Dauerbaustellen").font(.subheadline.weight(.medium)) }
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-                Text("Dauerbaustellen").font(.subheadline.weight(.medium)).lineLimit(1).fixedSize()
                 Spacer()
             }
+            SevChips(on: $sevOn)
         }
         .onChange(of: when) { _, _ in fitVisible(d) }
         .onChange(of: dir) { _, _ in fitVisible(d) }
-        .onChange(of: showDauer) { _, _ in fitVisible(d) }
+        .onChange(of: sevOn) { _, _ in fitVisible(d) }
     }
 
     private func hiddenNote(_ d: RoadDetail) -> some View {
         let n = hiddenDauer(d)
-        return Button { withAnimation { showDauer = true } } label: {
+        return Button { withAnimation { sevOn = Set(Severity.allCases) } } label: {
             HStack(spacing: 6) {
                 Image(systemName: "eye.slash").font(.caption)
-                Text("\(n) Dauerbaustelle\(n == 1 ? "" : "n") ausgeblendet")
-                Text("Einblenden").foregroundStyle(Theme.accent).fontWeight(.semibold)
+                Text("\(n) ausgeblendet")
+                Text("Alle einblenden").foregroundStyle(Theme.accent).fontWeight(.semibold)
             }
             .font(.footnote.weight(.medium))
             .padding(.horizontal, 12).padding(.vertical, 7)
@@ -308,8 +306,8 @@ struct RoadView: View {
         VStack(spacing: 8) {
             Text(when == .heute ? "Für heute ist hier nichts gemeldet. Gute Fahrt!" : "Für diese Auswahl ist nichts gemeldet.")
                 .foregroundStyle(.secondary)
-            if !showDauer && d.dauer > 0 {
-                Button("Dauerbaustellen anzeigen") { showDauer = true }.font(.subheadline.weight(.medium))
+            if sevOn.count < Severity.allCases.count {
+                Button("Alle Arten anzeigen") { sevOn = Set(Severity.allCases) }.font(.subheadline.weight(.medium))
             }
         }
         .frame(maxWidth: .infinity)
@@ -372,7 +370,7 @@ struct RoadView: View {
         guard let gid else { return }
         if let g = d.groups.first(where: { $0.id == gid }) {
             if !Self.inWindow(g, when) { when = g.heute ? .heute : (g.woche ? .woche : .alle) }
-            if g.severity == .dauer { showDauer = true }
+            sevOn.insert(g.severity)
             if !dir.isEmpty && !g.d.isEmpty && !g.d.contains(dir) { dir = "" }
         }
         selected = gid

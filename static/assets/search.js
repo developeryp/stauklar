@@ -101,8 +101,11 @@
       return;
     }
     let r = RADIUS;
-    let near = pts.map(p => ({ p, d: km(center, { lat: p[2], lon: p[3] }) })).filter(x => x.d <= r);
-    if (!near.length) { r = 60; near = pts.map(p => ({ p, d: km(center, { lat: p[2], lon: p[3] }) })).filter(x => x.d <= r); }
+    // Gleiche Auswahl wie die Knöpfe unter der Karte
+    const ok = p => !AB.sevOn || AB.sevOn.includes(p[4]);
+    let near = pts.map(p => ({ p, d: km(center, { lat: p[2], lon: p[3] }) })).filter(x => x.d <= r && ok(x.p));
+    if (!near.length) { r = 60; near = pts.map(p => ({ p, d: km(center, { lat: p[2], lon: p[3] }) })).filter(x => x.d <= r && ok(x.p)); }
+    AB.lastNear = () => showNearby(center, false);
     const RANK = { live: 0, voll: 1, sperr: 2, kurz: 3, dauer: 4 };
     const relevant = near.filter(x => x.p[5] && x.p[4] !== 'dauer').sort((a, b) => RANK[a.p[4]] - RANK[b.p[4]] || a.d - b.d);
     const dauer = near.filter(x => x.p[4] === 'dauer').sort((a, b) => a.d - b.d);
@@ -118,7 +121,7 @@
     const where = center.name === 'deinem Standort' ? 'dich' : esc(center.name);
     panel.innerHTML = `<div class="nah-head">
   <div><p class="eyebrow">Umkreis ${r} km</p><h2>Rund um ${where}</h2>
-  <p class="sub">${relevant.length ? `${relevant.length} ${relevant.length === 1 ? 'Meldung' : 'Meldungen'} für heute und heute Nacht, die nächste zuerst.` : 'Heute keine kurzfristigen Sperrungen in der Nähe. Gute Fahrt!'}</p></div>
+  <p class="sub">${relevant.length ? `${relevant.length} ${relevant.length === 1 ? 'Meldung' : 'Meldungen'} für heute und heute Nacht, die nächste zuerst.` : 'Heute keine Sperrungen und Baustellen in der Nähe. Gute Fahrt!'}</p></div>
   <button type="button" class="nah-close" aria-label="Umkreis schließen">✕</button>
 </div>
 ${roadList.length ? `<p class="nah-roads">Autobahnen in der Nähe: ${roadList.slice(0, 10).map(([rd, d]) => `<a class="shield" href="${B}/${rd.toLowerCase()}/" title="${Math.round(d)} km entfernt">${esc(rd)}</a>`).join('')}</p>` : ''}
