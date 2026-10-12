@@ -135,15 +135,25 @@ struct NearbyRow: View {
     let point: Point
     let km: Double
 
+    /// Staus: „Angespannte Verkehrslage, seit 12.10.2026, 12:28“ → Art („Angespannte Verkehrslage“) und Zeit („seit 12:28“)
+    private var liveParts: (kind: String, time: String) {
+        let short = WarnRow.headline(point.when)
+        guard let r = short.range(of: ", seit ") else { return (short, "") }
+        return (String(short[..<r.lowerBound]), "seit " + short[r.upperBound...])
+    }
+
     private var whenText: String {
-        if point.severity == .live { return WarnRow.headline(point.when) }
+        if point.severity == .live { return liveParts.time.isEmpty ? "aktuell" : liveParts.time }
         return point.active ? point.when.replacingOccurrences(of: "jetzt ", with: "") : point.when
     }
+
+    private var labelText: String { point.severity == .live ? liveParts.kind : point.label }
 
     var body: some View {
         HStack(spacing: 12) {
             Circle().fill(Theme.color(point.severity)).frame(width: 10, height: 10)
-            Shield(id: point.road, size: 12)
+            // Feste Breite, damit der Text bei A10 und A100 an derselben Stelle beginnt
+            Shield(id: point.road, size: 12).frame(width: 58, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
                 // Abzeichen + Zeit linksbündig; bei Staus kurz („Angespannte Verkehrslage, seit 12:28“)
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -151,11 +161,10 @@ struct NearbyRow: View {
                     else if point.active { Badge(text: "jetzt", color: Theme.color(point.severity)) }
                     Text(whenText)
                         .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .lineLimit(1)
                 }
                 Text(point.title).font(.subheadline.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
-                Text(point.label).font(.caption.weight(.semibold)).foregroundStyle(Theme.color(point.severity))
+                Text(labelText).font(.caption.weight(.semibold)).foregroundStyle(Theme.color(point.severity)).multilineTextAlignment(.leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Spacer(minLength: 0)
