@@ -246,7 +246,7 @@ struct UpcomingRow: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(distance).font(.system(size: 30, weight: .bold, design: .rounded)).monospacedDigit()
                     Spacer()
-                    Text(u.active ? u.label : "ab \(u.when)").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.color(u.severity))
+                    Text(u.active ? u.label : (u.when.hasPrefix("ab ") ? u.when : "ab \(u.when)")).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.color(u.severity))
                 }
                 Text(u.title).font(.title3.weight(.semibold)).lineLimit(2)
                 if !u.lanes.isEmpty {
