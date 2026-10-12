@@ -23,7 +23,7 @@ targets:
       path: Stauklar/Stauklar.entitlements
       properties:
         aps-environment: development
-        com.apple.developer.associated-domains: ["applinks:stauklar.de"]
+        com.apple.developer.associated-domains: ["applinks:stauklar.de", "applinks:stauklar.de?mode=developer"]
     info:
       path: Stauklar/Info.plist
       properties:

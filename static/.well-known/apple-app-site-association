@@ -1,1 +1,8 @@
-{"applinks":{"details":[{"appIDs":["6AY5V43PJ2.de.stauklar.app"],"components":[{"/":"/app/open/*","comment":"Nur ausdrückliche App-Links; normale Seiten bleiben im Browser"}]}]}}
+{"applinks":{"details":[{"appIDs":["6AY5V43PJ2.de.stauklar.app"],"components":[
+{"/":"/app/open/*","comment":"Ausdrückliche App-Links"},
+{"/":"/app/*","exclude":true,"comment":"App-Infoseite bleibt im Browser"},
+{"/":"/api/*","exclude":true},
+{"/":"/a?/*","comment":"Autobahnseiten (A1–A9) und deren Meldungen"},
+{"/":"/a??/*","comment":"A10–A99"},
+{"/":"/a???/*","comment":"A100–A999"}
+]}]}}
