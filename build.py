@@ -732,6 +732,9 @@ def page(title, desc, path, body, jsonld=(), extra_head="", body_class=""):
 <meta name="theme-color" content="#1650a8">
 {f'<meta name="apple-itunes-app" content="app-id={APP_ID}, app-argument={canonical}">' if APP_ID else ''}
 <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:image" content="{SITE_URL}/icon-512.png">
 <link rel="stylesheet" href="/assets/style.css?v={VER}">
 {ld}{extra_head}
 </head>
