@@ -121,16 +121,23 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
 
     // MARK: - UNUserNotificationCenterDelegate
 
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .list]
+    // Klassische Varianten mit completionHandler: Die async-Varianten melden „fertig“ aus einem Hintergrund-Thread zurück,
+    // UIKit verlangt dafür aber den Haupt-Thread und bricht die App sonst beim Antippen ab.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                                            withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        DispatchQueue.main.async { completionHandler([.banner, .sound, .list]) }
     }
 
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                            withCompletionHandler completionHandler: @escaping () -> Void) {
         let info = response.notification.request.content.userInfo
         let road = info["road"] as? String, item = info["item"] as? String, title = info["title"] as? String
-        await MainActor.run {
-            if let road { PushManager.shared.pendingItem = item; PushManager.shared.pendingTitle = title; PushManager.shared.pendingRoad = road }
-            else { PushManager.shared.pendingHome = true }
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                if let road { PushManager.shared.pendingItem = item; PushManager.shared.pendingTitle = title; PushManager.shared.pendingRoad = road }
+                else { PushManager.shared.pendingHome = true }
+            }
+            completionHandler()
         }
     }
 }
