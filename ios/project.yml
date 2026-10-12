@@ -29,6 +29,9 @@ targets:
       properties:
         CFBundleDisplayName: Stauklar
         CFBundleName: Stauklar
+        # Versionen kommen aus MARKETING_VERSION / CURRENT_PROJECT_VERSION
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
