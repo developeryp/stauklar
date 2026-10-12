@@ -831,7 +831,9 @@ struct ShareButton: View {
     let detail: String
 
     var body: some View {
-        let text = detail.isEmpty ? title : "\(title)\n\(detail)"
+        // „jetzt bis 13.11.2026“ → „Jetzt bis 13.11.2026“
+        let d = detail.prefix(1).uppercased() + detail.dropFirst()
+        let text = d.isEmpty ? title : "\(title)\n\(d)"
         ShareLink(item: Share.url(road, id: id), subject: Text(title), message: Text(text),
                   preview: SharePreview(short, image: Image("Logo"))) {
             Label("Teilen", systemImage: "square.and.arrow.up")

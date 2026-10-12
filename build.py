@@ -812,7 +812,11 @@ def lage(road, items, warns):
     if warns:
         out.append(f"Gerade {'liegt' if len(warns) == 1 else 'liegen'} {plural(len(warns), 'Meldung', 'Meldungen')} zu Stau, Unfall oder Gefahren vor.")
     if dauer:
-        out.append(f"Dazu kommen {plural(len(dauer), 'Dauerbaustelle', 'Dauerbaustellen')}, meist mit verengten Spuren.")
+        n = len(dauer)
+        if out:
+            out.append("Dazu kommt eine Dauerbaustelle mit verengten Spuren." if n == 1 else f"Dazu kommen {n} Dauerbaustellen, meist mit verengten Spuren.")
+        else:
+            out.append(f"Heute keine Sperrungen oder Staus. Es gibt nur {'eine Dauerbaustelle mit verengten Spuren' if n == 1 else f'{n} Dauerbaustellen, meist mit verengten Spuren'}.")
     if not out:
         out.append(f"Für die {road} sind heute keine Sperrungen oder Baustellen gemeldet.")
     return " ".join(out)
