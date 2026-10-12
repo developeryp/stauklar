@@ -54,7 +54,7 @@ struct DriveView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.black, for: .navigationBar)
         .sheet(item: $preview) { t in
-            NavigationStack { RoadView(roadID: t.road, focusItem: t.item) }
+            NavigationStack { RoadView(roadID: t.road, focusItem: t.item, preview: true) }
                 .presentationDragIndicator(.visible)
         }
         .onAppear { model.start(store: store); UIApplication.shared.isIdleTimerDisabled = true }

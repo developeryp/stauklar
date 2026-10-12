@@ -6,6 +6,8 @@ struct RoadView: View {
     let roadID: String
     /// Meldung (Item- oder Stau-ID), die beim Öffnen aufgeklappt und auf der Karte gezeigt wird
     var focusItem: String? = nil
+    /// Vorschau aus dem Fahrmodus: ohne „In der Nähe“, da dort nur die eine Meldung interessiert
+    var preview = false
     @EnvironmentObject private var store: Store
     @State private var detail: RoadDetail?
     @State private var failed = false
@@ -151,7 +153,7 @@ struct RoadView: View {
                 if let ends { RouteEnd(text: ends.1) }
             }
             if !d.parking.isEmpty || !d.charging.isEmpty { services(d) }
-            if !d.near.isEmpty {
+            if !d.near.isEmpty, !preview {
                 VStack(alignment: .leading, spacing: 10) {
                     SectionTitle(text: "In der Nähe")
                     ScrollView(.horizontal, showsIndicators: false) {
