@@ -175,9 +175,27 @@ def build_warnings(road):
     return res
 
 
+def service_name(road, x):
+    t = re.sub(rf"^{re.escape(road)}\s*\|\s*", "", x.get("title") or "").strip()
+    if not t or t == "undefined":
+        t = (x.get("subtitle") or "").strip()
+    return t
+
+
 def build_services(road):
-    parking = sorted({re.sub(rf"^{re.escape(road)}\s*\|\s*", "", x.get("title", "")).strip() for x in load(road, "parking_lorry")} - {""})
-    charging = sorted({re.sub(rf"^{re.escape(road)}\s*\|\s*", "", x.get("title", "")).strip() for x in load(road, "electric_charging_station")} - {""})
+    parking = []
+    for x in load(road, "parking_lorry"):
+        name = service_name(road, x)
+        if not name:
+            continue
+        cap = []
+        for line in x.get("description") or []:
+            m = re.match(r"(PKW|LKW) Stellplätze:\s*(\d+)", line)
+            if m:
+                cap.append(f"{m.group(2)} {'Pkw' if m.group(1) == 'PKW' else 'Lkw'}")
+        parking.append(name + (" · " + ", ".join(cap) if cap else ""))
+    parking = sorted(set(parking))
+    charging = sorted({service_name(road, x) for x in load(road, "electric_charging_station")} - {""})
     return parking, charging
 
 
@@ -288,13 +306,15 @@ def lanes(sym):
         text = ["Fahrbahn gesperrt"]
     elif closed:
         text = [f"{opn} von {opn + closed} Spuren frei"]
+    elif opn == 0 and opp:
+        text = ["Verkehr läuft auf der Gegenfahrbahn"]
     else:
         text = [f"{opn} Spur{'en' if opn != 1 else ''} frei"]
     if "CLOSED" in shoulder:
         text.append("Standstreifen zu")
     if "ARROW_UP" in shoulder:
         text.append("Standstreifen befahrbar")
-    if opp:
+    if opp and text[0] != "Verkehr läuft auf der Gegenfahrbahn":
         text.append("Gegenverkehr")
     label = " · ".join(text)
     return f'<span class="road-x" role="img" aria-label="Fahrstreifen: {e(label)}">{"".join(cells)}</span>', label
@@ -441,20 +461,34 @@ def plain_where(where):
     return plain_place(re.sub(r"^(Von )?A\d+\w*:\s*[^,]+,\s*", "", w))
 
 
+def is_ramp(it):
+    w = it.get("where", "")
+    return (w.startswith(("Abfahrt", "Auffahrt", "Ausfahrt", "Zufahrt", "Von Auffahrt", "Von Abfahrt")) or "nach Abfahrt" in w
+            or (w.startswith("Von ") and "zwischen" not in w))
+
+
 def ramp_text(it):
-    """„Auffahrt Feuerbachstraße (aus Richtung Saarstraße) gesperrt“"""
+    """„Auffahrt Feuerbachstraße (aus Richtung Saarstraße) gesperrt“ bzw. „Abfahrt Funkturm: 1 Spur frei“"""
     w = arrow(it.get("where", ""))
-    lab = it.get("label") or ""
-    kind = lab.split()[0] if lab else "Zufahrt"
-    m = None
-    if kind == "Auffahrt":
-        m = re.search(r"Auffahrt auf die A\d+\w*:\s*([^(]+?)\s*(?:\(|nach|$)", w)
-    elif kind == "Abfahrt":
-        m = re.search(r"Abfahrt von der A\d+\w*:\s*([^(]+?)\s*(?:\(|$)", w)
-    name = plain_place(m.group(1)) if m else ""
+    on = re.search(r"Auffahrt auf die (A\s?\d+\w*):\s*([^(]+?)\s*(?:\(|nach|$)", w)
+    off = re.search(r"Abfahrt von der (A\s?\d+\w*)(?::\s*([^(]+?))?\s*(?:\(|$)", w)
     m2 = re.search(r"\(aus Richtung ([^)]+)\)", w)
     extra = f" (aus Richtung {plain_place(m2.group(1))})" if m2 else ""
-    return f"{kind} {name}{extra} gesperrt" if name else f"{kind} gesperrt"
+    if on and "nach Abfahrt" in w:
+        # Verbindungsrampe: von der Auffahrt direkt auf eine andere Autobahn
+        target = off.group(1).replace(" ", "") if off else "die Abfahrt"
+        name = f"Auffahrt {plain_place(on.group(2))}{extra} → {target}"
+    elif on:
+        name = f"Auffahrt {plain_place(on.group(2))}{extra}"
+    elif off:
+        name = f"Abfahrt {plain_place(off.group(2))}{extra}" if off.group(2) else f"Abfahrt {off.group(1).replace(' ', '')}{extra}"
+    else:
+        name = (it.get("label") or "Zufahrt gesperrt").replace(" gesperrt", "")
+    _, lane_txt = lanes(it.get("lanes") or [])
+    opn, closed = lane_counts(it.get("lanes") or [])
+    if (it.get("label") or "") in RAMP_LABELS or (closed and not opn):
+        return f"{name} gesperrt"
+    return f"{name}: {lane_txt or 'eingeschränkt'}"
 
 
 def nice_title(project, members):
@@ -504,6 +538,15 @@ def section_of(members):
     return names[0] if names else ""
 
 
+def dedupe_ramps(texts):
+    out = {}
+    for t in texts:
+        base = re.split(r": | gesperrt$", t)[0]
+        if base not in out or t.endswith("gesperrt"):
+            out[base] = t
+    return list(out.values())
+
+
 def group_items(items):
     buckets = {}
     for it in items:
@@ -514,16 +557,16 @@ def group_items(items):
         gid = f"g{n}"
         for m in mem:
             m["g"] = gid
-        main = [m for m in mem if (m.get("label") or "") not in RAMP_LABELS]
-        ramps = [m for m in mem if (m.get("label") or "") in RAMP_LABELS]
+        main = [m for m in mem if not is_ramp(m)] or mem
+        ramps = [m for m in mem if is_ramp(m)] if len(main) < len(mem) else []
         sev = max(mem, key=lambda m: SEV_RANK[m["sev"]])["sev"]
         dirs = []
         for d in ("minus", "plus", ""):
             ms = [m for m in main if m["d"] == d]
             if not ms:
                 continue
-            # bei mehreren Einträgen je Richtung den mit den meisten gesperrten Spuren zeigen
-            best = max(ms, key=lambda m: lane_counts(m.get("lanes") or [])[1])
+            # bei mehreren Einträgen je Richtung den schwersten zeigen: Vollsperrung vor gesperrten Spuren
+            best = max(ms, key=lambda m: (SEV_RANK[m["sev"]], lane_counts(m.get("lanes") or [])[1]))
             dirs.append(dict(d=d, raw=arrow(best["dir"]), lanes=best.get("lanes") or [], laneText=lanes(best.get("lanes") or [])[1],
                              where=plain_where(best.get("where", "")), info=best.get("info", "")))
         if sev == "voll":
@@ -541,7 +584,7 @@ def group_items(items):
             sev=sev, label=label, active=any(m["active"] for m in mem),
             heute=any(m["w_heute"] for m in mem), woche=any(m["w_woche"] for m in mem),
             show=mem[0]["show"], when=human_when(mem[0]["show"]), upcoming=upcoming, total=total,
-            dirs=dirs, ramps=[ramp_text(r) for r in ramps],
+            dirs=dirs, ramps=dedupe_ramps([ramp_text(r) for r in ramps]),
             project=mem[0].get("project", ""), raw_titles=[m["title"] for m in mem],
             t=sum(m["t"] for m in mem) / len(mem), d=sorted({m["d"] for m in mem if m["d"]}),
             lat=mem[0]["lat"], lon=mem[0]["lon"], geom=[g for m in mem for g in (m.get("geom") or [])],
