@@ -697,8 +697,8 @@ def features(items, warns, road=None, ids=None):
             props.update(road=road, url=f"{BASE}/{slug(road)}/#{it['id']}")
         line = g
         if road and not live and it["sev"] == "dauer" and len(g) > 3:
-            # Deutschlandkarte: Dauerbaustellen vereinfacht (Anfang, Mitte, Ende), sonst wird die Datei für Handys zu groß
-            line = [g[0], g[len(g) // 2], g[-1]]
+            # Deutschlandkarte: Dauerbaustellen mit weniger Stützpunkten, sonst wird die Datei für Handys zu groß
+            line = simplify(g, 12)
         out.append(dict(type="Feature", properties=props, geometry=dict(type="LineString", coordinates=line)))
         out.append(dict(type="Feature", properties=dict(props, pt=1), geometry=dict(type="Point", coordinates=g[len(g) // 2])))
     return {"type": "FeatureCollection", "features": out}
