@@ -74,7 +74,6 @@ struct KPI: View {
             Text(label)
                 .font(.footnote.weight(.medium))
                 .foregroundStyle(.secondary)
-                .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

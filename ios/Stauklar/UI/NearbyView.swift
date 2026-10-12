@@ -161,9 +161,9 @@ struct NearbyRow: View {
                     else if point.active { Badge(text: "jetzt", color: Theme.color(point.severity)) }
                     Text(whenText)
                         .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Text(point.title).font(.subheadline.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
+                Text(point.title).font(.subheadline.weight(.semibold)).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
                 Text(labelText).font(.caption.weight(.semibold)).foregroundStyle(Theme.color(point.severity)).multilineTextAlignment(.leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

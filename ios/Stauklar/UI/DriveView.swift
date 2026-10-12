@@ -159,7 +159,7 @@ struct DriveView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(next.km < 0.3 ? "jetzt" : (next.km < 10 ? String(format: "%.1f km", next.km).replacingOccurrences(of: ".", with: ",") : "\(Int(next.km.rounded())) km"))
                             .font(.system(size: 28, weight: .bold, design: .rounded)).monospacedDigit()
-                        Text(next.title).font(.footnote.weight(.semibold)).lineLimit(1)
+                        Text(next.title).font(.footnote.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 6)
                     if !next.lanes.isEmpty {
@@ -205,7 +205,7 @@ struct DriveView: View {
             if let road = model.roadID {
                 Shield(id: road, size: 22)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(model.directionText).font(.title3.weight(.semibold)).lineLimit(1)
+                    Text(model.directionText).font(.title3.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
                     Text(model.stand).font(.caption).foregroundStyle(.secondary)
                 }
             } else {
@@ -260,7 +260,7 @@ struct UpcomingRow: View {
                     Spacer()
                     Text(u.active ? u.label : (u.when.hasPrefix("ab ") ? u.when : "ab \(u.when)")).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.color(u.severity))
                 }
-                Text(u.title).font(.title3.weight(.semibold)).lineLimit(2)
+                Text(u.title).font(.title3.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
                 if !u.lanes.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         LaneGraphic(symbols: u.lanes)

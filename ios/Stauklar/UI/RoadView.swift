@@ -229,8 +229,8 @@ struct RoadView: View {
                                     HStack(spacing: 10) {
                                         Circle().fill(Theme.color(g.severity)).frame(width: 10, height: 10)
                                         VStack(alignment: .leading, spacing: 1) {
-                                            Text(g.title).font(.subheadline.weight(.semibold)).lineLimit(1)
-                                            Text("\(g.label) · \(g.when)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                            Text(g.title).font(.subheadline.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
+                                            Text("\(g.label) · \(g.when)").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                                         }
                                         Spacer(minLength: 4)
                                         Text("Details").font(.caption.weight(.semibold)).foregroundStyle(Theme.accent)
@@ -420,9 +420,9 @@ struct RoadView: View {
                     HStack(spacing: 10) {
                         Circle().fill(Theme.color(g?.severity ?? .live)).frame(width: 10, height: 10)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(g?.title ?? w?.title ?? "").font(.subheadline.weight(.semibold)).lineLimit(1)
+                            Text(g?.title ?? w?.title ?? "").font(.subheadline.weight(.semibold)).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
                             Text(g.map { $0.active ? $0.when.replacingOccurrences(of: "jetzt ", with: "jetzt, ") : $0.when } ?? (w?.text.first ?? "Stau oder Gefahr"))
-                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer(minLength: 4)
                         Text("Details").font(.caption.weight(.semibold)).foregroundStyle(Theme.accent)
@@ -729,12 +729,12 @@ struct GroupRow: View {
                                 ForEach(group.ramps, id: \.self) { r in
                                     // „Auffahrt X gesperrt“ → rot; „Abfahrt Y: 1 Spur frei“ → neutral
                                     if r.hasSuffix(" gesperrt") {
-                                        HStack(spacing: 8) {
-                                            Text(String(r.dropLast(9))).font(.caption.weight(.medium))
-                                            Text("gesperrt").font(.caption.weight(.semibold)).foregroundStyle(Theme.color(.sperr))
-                                        }
+                                        // Ein Text statt zwei nebeneinander: bricht um, statt mit „…“ abgeschnitten zu werden
+                                        (Text(String(r.dropLast(9))).font(.caption.weight(.medium))
+                                         + Text("  gesperrt").font(.caption.weight(.semibold)).foregroundStyle(Theme.color(.sperr)))
+                                            .multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
                                     } else {
-                                        Text(r).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                                        Text(r).font(.caption.weight(.medium)).foregroundStyle(.secondary).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
                                     }
                                 }
                             }
