@@ -568,6 +568,35 @@ def dedupe_ramps(texts):
     return list(out.values())
 
 
+def terms_text(wins, shown):
+    """Weitere Zeitfenster einer Maßnahme lesbar: gleiche Uhrzeit wird zusammengefasst
+    („täglich 09:00–18:00 vom 13.10. bis 23.10.“ oder „Di 13.10., Mi 14.10. … jeweils 22:00–05:00“)."""
+    fut = sorted({w for w in wins if w[1] > NOW and w != shown})
+    if not fut:
+        return ""
+    times = {(s.strftime("%H:%M"), en.strftime("%H:%M")) for s, en in fut}
+    if len(times) == 1 and all(en - s <= dt.timedelta(hours=24) for s, en in fut):
+        t = next(iter(times))
+        days = [s.date() for s, _ in fut]
+        consecutive = all((b - a).days == 1 for a, b in zip(days, days[1:]))
+        span = f"{t[0]}–{t[1]} Uhr"
+        if len(days) >= 3 and consecutive:
+            return f"täglich {span}, vom {fdate(fut[0][0], False)} bis {fdate(fut[-1][0], False)}"
+        # Montag bis Freitag ohne Lücke (Feiertage ausgenommen) → „werktags“
+        workdays = [days[0] + dt.timedelta(n) for n in range((days[-1] - days[0]).days + 1)]
+        workdays = [x for x in workdays if x.weekday() < 5]
+        if len(days) >= 5 and all(x.weekday() < 5 for x in days) and len(days) >= len(workdays) - 2:
+            gaps = "" if len(days) == len(workdays) else " (mit Ausnahmen)"
+            return f"werktags (Mo–Fr) {span}, vom {fdate(fut[0][0], False)} bis {fdate(fut[-1][0], False)}{gaps}"
+        names = ", ".join(f"{WD_SHORT[s.weekday()]} {fdate(s, False)}" for s, _ in fut[:10])
+        more = f" und {len(fut) - 10} weitere Tage" if len(fut) > 10 else ""
+        return f"{names}{more}, jeweils {span}"
+    lines = [fwin(w) for w in fut[:6]]
+    if len(fut) > 6:
+        lines.append(f"und {len(fut) - 6} weitere")
+    return "; ".join(lines)
+
+
 def group_items(items):
     buckets = {}
     for it in items:
@@ -616,6 +645,7 @@ def group_items(items):
             sev=sev, label=label, active=any(m["active"] for m in mem),
             heute=any(m["w_heute"] for m in mem), woche=any(m["w_woche"] for m in mem),
             show=mem[0]["show"], when=human_when(mem[0]["show"]), upcoming=upcoming, total=total,
+            terms=terms_text([w for m in mem for w in m["wins"]], mem[0]["show"]),
             dirs=dirs, ramps=dedupe_ramps([ramp_text(r) for r in ramps]),
             project=mem[0].get("project", ""), raw_titles=[m["title"] for m in mem],
             t=sum(m["t"] for m in mem) / len(mem), d=sorted({m["d"] for m in mem if m["d"]}),
@@ -647,7 +677,7 @@ def stop(g, labels, href=None):
             lines.append(f'<span class="dirline ramp"><span class="dl">{e(name)}</span><span class="dt">{e(rest or "eingeschränkt")}</span></span>')
     rows = [("Zeitraum", fwin(g["show"]))]
     if g["upcoming"] > 1:
-        rows.append(("Weitere Termine", f"{g['upcoming'] - 1} weitere"))
+        rows.append(("Weitere Termine", g["terms"] or f"{g['upcoming'] - 1} weitere"))
     if g["total"] and g["total"].date() > g["show"][1].date():
         rows.append(("Gesamte Maßnahme bis", fdate(g["total"])))
     for d in g["dirs"]:
@@ -1133,7 +1163,7 @@ def api_item(it, labels):
 def api_group(g):
     return dict(id=g["id"], items=g["items"], title=g["title"], section=g["section"], what=g["what"], sev=g["sev"], label=g["label"],
                 active=g["active"], heute=g["heute"], woche=g["woche"], when=human_when(g["show"]),
-                start=iso(g["show"][0]), end=iso(g["show"][1]), total=iso(g["total"]), upcoming=g["upcoming"],
+                start=iso(g["show"][0]), end=iso(g["show"][1]), total=iso(g["total"]), upcoming=g["upcoming"], terms=g["terms"],
                 dirs=[dict(d=x["d"], raw=x["raw"], lanes=x["lanes"], laneText=x["laneText"], where=x["where"], info=x["info"]) for x in g["dirs"]],
                 ramps=g["ramps"], project=g["project"], t=round(g["t"], 2), d=g["d"], lat=round(g["lat"], 5), lon=round(g["lon"], 5))
 
@@ -1252,7 +1282,7 @@ def event_page(road, d, g, others):
 
     lines, rows = [], [("Zeitraum", fwin(g["show"]))]
     if g["upcoming"] > 1:
-        rows.append(("Weitere Termine", f"{g['upcoming'] - 1} weitere, siehe Streckenseite"))
+        rows.append(("Weitere Termine", g["terms"] or f"{g['upcoming'] - 1} weitere"))
     if g["total"] and g["total"].date() > en.date():
         rows.append(("Gesamte Maßnahme bis", fdate(g["total"])))
     dir_names = []

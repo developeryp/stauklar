@@ -63,6 +63,8 @@ struct Group: Codable, Identifiable, Hashable {
     let end: String?
     let total: String?
     let upcoming: Int
+    /// Weitere Zeitfenster als Text, z. B. „täglich 09:00–18:00 Uhr, vom 13.10. bis 23.10.“
+    let terms: String?
     let dirs: [DirLine]
     let ramps: [String]
     let project: String
