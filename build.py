@@ -822,8 +822,22 @@ def topnav(path):
     return "".join(out)
 
 
-def page(title, desc, path, body, jsonld=(), extra_head="", body_class=""):
+def road_icon(road):
+    """Quadratisches Autobahnschild (nur Nummer) als Tab-Icon."""
+    n = road.lstrip("A")
+    fs = {1: 22, 2: 19}.get(len(n), 14)
+    fit = ' textLength="26" lengthAdjust="spacingAndGlyphs"' if len(n) > 2 else ""
+    return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+            '<rect width="32" height="32" rx="6" fill="#1f5fbf"/>'
+            '<rect x="2.2" y="2.2" width="27.6" height="27.6" rx="4.2" fill="none" stroke="#fff" stroke-width="1.8"/>'
+            f'<text x="16" y="16.5" text-anchor="middle" dominant-baseline="central" fill="#fff" '
+            f'font-family="Helvetica Neue,Helvetica,Arial,sans-serif" font-weight="700" font-size="{fs}"{fit}>{e(n)}</text></svg>')
+
+
+def page(title, desc, path, body, jsonld=(), extra_head="", body_class="", road=None):
     canonical = SITE_URL + path
+    icons = (f'<link rel="icon" href="/assets/fav/{slug(road)}.svg?v=1" type="image/svg+xml">' if road else
+             '<link rel="icon" href="/favicon-32.png?v=3" sizes="32x32" type="image/png">\n<link rel="shortcut icon" href="/favicon.ico?v=3">')
     ld = "".join(f'<script type="application/ld+json">{json.dumps(j, ensure_ascii=False)}</script>' for j in jsonld)
     return f"""<!doctype html>
 <html lang="de" data-base="{BASE}">
@@ -841,8 +855,7 @@ def page(title, desc, path, body, jsonld=(), extra_head="", body_class=""):
 <meta property="og:locale" content="de_DE">
 <meta name="theme-color" content="#1650a8">
 {f'<meta name="apple-itunes-app" content="app-id={APP_ID}, app-argument={canonical}">' if APP_ID else ''}
-<link rel="icon" href="/favicon-32.png?v=3" sizes="32x32" type="image/png">
-<link rel="shortcut icon" href="/favicon.ico?v=3">
+{icons}
 <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3">
 <meta property="og:image" content="{SITE_URL}/icon-512.png">
 <link rel="stylesheet" href="/assets/style.css?v={VER}">
@@ -1027,7 +1040,7 @@ def road_page(road, d, near):
             {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in faq]},
         {"@context": "https://schema.org", "@type": "WebPage", "name": title, "dateModified": NOW.replace(tzinfo=TZ).isoformat(), "inLanguage": "de-DE"},
     ]
-    return page(title, desc, f"/{slug(road)}/", body, jsonld, extra_head=MAP_HEAD, body_class="p-road")
+    return page(title, desc, f"/{slug(road)}/", body, jsonld, extra_head=MAP_HEAD, body_class="p-road", road=road)
 
 
 def index_page(roads, data):
@@ -1397,7 +1410,7 @@ def event_page(road, d, g, others):
     jsonld = [breadcrumb((road, f"/{slug(road)}/"), (f"Vollsperrung {g['title']}", path)), webpage_ld(title),
               {"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [
                   {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in faq]}]
-    return page(title, desc, path, body, jsonld, extra_head=MAP_HEAD, body_class="p-road p-ev")
+    return page(title, desc, path, body, jsonld, extra_head=MAP_HEAD, body_class="p-road p-ev", road=road)
 
 
 def city_hits(city, roads, data, km=NEAR_CITY_KM):
@@ -1609,6 +1622,9 @@ def main():
         near = sorted((o for o in roads if o != r and data[o]["c"] and c), key=lambda o: dist_km(c, data[o]["c"]))[:8]
         d = DIST / slug(r)
         d.mkdir(parents=True)
+        fav = DIST / "assets" / "fav"
+        fav.mkdir(parents=True, exist_ok=True)
+        (fav / f"{slug(r)}.svg").write_text(road_icon(r))
         (d / "index.html").write_text(road_page(r, data[r], near))
         (d / "map.json").write_text(json.dumps(features(data[r]["items"], data[r]["warns"]), ensure_ascii=False, separators=(",", ":")))
         for it in data[r]["items"] + data[r]["warns"]:
