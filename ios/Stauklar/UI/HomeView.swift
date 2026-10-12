@@ -1,13 +1,16 @@
 import SwiftUI
+import MapKit
 
 struct HomeView: View {
     @EnvironmentObject private var store: Store
     @State private var query = ""
+    @State private var path = NavigationPath()
+    @State private var camera: MapCameraPosition = .region(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 51.2, longitude: 10.4), span: MKCoordinateSpan(latitudeDelta: 8.2, longitudeDelta: 8.2)))
 
     private let columns = [GridItem(.adaptive(minimum: 76), spacing: 8)]
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 if query.isEmpty { overview } else { searchResults }
             }
@@ -26,6 +29,7 @@ struct HomeView: View {
     private var overview: some View {
         LazyVStack(alignment: .leading, spacing: 30) {
             germany
+            germanyMap
             favorites
             if !store.busiest.isEmpty { busiest }
             if !store.roads.isEmpty { allRoads }
@@ -63,6 +67,43 @@ struct HomeView: View {
             .buttonStyle(.borderedProminent)
             .buttonBorderShape(.capsule)
         }
+    }
+
+    /// Deutschlandkarte: alles, was heute gilt, als farbige Punkte. Tipp auf die Karte zeigt den Umkreis dort.
+    private var germanyMap: some View {
+        let pts = store.points.filter { $0.heute && $0.severity != .dauer }
+        return VStack(alignment: .leading, spacing: 10) {
+            SectionTitle(text: "Deutschland heute", detail: pts.isEmpty ? nil : "\(pts.count)")
+            MapReader { proxy in
+                Map(position: $camera, interactionModes: [.zoom]) {
+                    UserAnnotation()
+                    ForEach(pts) { p in
+                        MapCircle(center: p.coordinate, radius: p.severity == .kurz ? 2200 : 3200)
+                            .foregroundStyle(Theme.color(p.severity).opacity(0.9))
+                            .stroke(.white, lineWidth: 1)
+                    }
+                }
+                .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
+                .onTapGesture { pt in
+                    if let c = proxy.convert(pt, from: .local) {
+                        path.append(NearbyTarget.place(name: "diese Stelle", lat: c.latitude, lon: c.longitude))
+                    }
+                }
+            }
+            .frame(height: 340)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            HStack(spacing: 14) {
+                legend(.voll, "Vollsperrung"); legend(.sperr, "Sperrung"); legend(.kurz, "kurzfristig"); legend(.live, "Stau")
+                Spacer()
+            }
+            .font(.caption).foregroundStyle(.secondary)
+            Text("Tipp auf eine Stelle der Karte, um zu sehen, was dort im Umkreis los ist.")
+                .font(.caption).foregroundStyle(.tertiary)
+        }
+    }
+
+    private func legend(_ s: Severity, _ t: String) -> some View {
+        HStack(spacing: 5) { Circle().fill(Theme.color(s)).frame(width: 8, height: 8); Text(t) }
     }
 
     private var favorites: some View {

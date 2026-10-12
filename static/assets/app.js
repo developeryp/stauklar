@@ -43,7 +43,7 @@
           { enableHighAccuracy: false, timeout: 11000, maximumAge: 300000 });
       });
     },
-    mark(lat, lon) {
+    mark(lat, lon, radiusKm) {
       if (!map) return;
       if (!AB._marker) {
         const m = document.createElement('div');
@@ -51,8 +51,29 @@
         AB._marker = new maplibregl.Marker({ element: m });
       }
       AB._marker.setLngLat([lon, lat]).addTo(map);
+      if (radiusKm) AB.circle(lat, lon, radiusKm);
     },
-    unmark() { if (AB._marker) AB._marker.remove(); if (AB._center && !route) { AB._center = null; overview(); } },
+    // Umkreis als Kreisfläche einzeichnen (Polygon mit 64 Ecken)
+    circle(lat, lon, radiusKm) {
+      const draw = () => {
+        const pts = [];
+        for (let i = 0; i <= 64; i++) {
+          const a = (i / 64) * 2 * Math.PI;
+          pts.push([lon + (radiusKm * Math.sin(a)) / (111.32 * Math.cos(lat * Math.PI / 180)), lat + (radiusKm * Math.cos(a)) / 110.57]);
+        }
+        const gj = { type: 'Feature', geometry: { type: 'Polygon', coordinates: [pts] } };
+        if (map.getSource('me-r')) { map.getSource('me-r').setData(gj); return; }
+        map.addSource('me-r', { type: 'geojson', data: gj });
+        map.addLayer({ id: 'me-r-fill', type: 'fill', source: 'me-r', paint: { 'fill-color': '#0a84ff', 'fill-opacity': 0.08 } }, map.getLayer('ctx') ? 'ctx' : undefined);
+        map.addLayer({ id: 'me-r-line', type: 'line', source: 'me-r', paint: { 'line-color': '#0a84ff', 'line-width': 1.5, 'line-dasharray': [2, 2] } });
+      };
+      if (map.isStyleLoaded()) draw(); else map.once('load', draw);
+    },
+    unmark() {
+      if (AB._marker) AB._marker.remove();
+      if (map && map.getSource('me-r')) map.getSource('me-r').setData({ type: 'FeatureCollection', features: [] });
+      if (AB._center && !route) { AB._center = null; overview(); }
+    },
     flyTo(lat, lon, zoom = 9.3) { AB._center = { lat, lon, zoom }; if (map) map.flyTo({ center: [lon, lat], zoom, duration: reduce ? 0 : 900 }); },
   };
 
@@ -137,7 +158,7 @@
     if (find && v !== find.value.trim()) return; // inzwischen weitergetippt
     if (hit) {
       state.near = { ...hit, r: 20, src: 'ort' };
-      AB.mark(hit.lat, hit.lon);
+      AB.mark(hit.lat, hit.lon, 20);
     } else {
       state.near = null; AB.unmark();
       state.q = norm(v);
@@ -190,7 +211,7 @@
       if (find) find.value = '';
       locBtn.classList.add('on');
       setLbl(locBtn, '30 km um dich ✕');
-      AB.mark(pos.lat, pos.lon);
+      AB.mark(pos.lat, pos.lon, 30);
       apply(true);
     } catch (err) {
       clearLoc();

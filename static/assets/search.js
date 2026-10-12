@@ -125,9 +125,10 @@ ${roadList.length ? `<p class="nah-roads">Autobahnen in der Nähe: ${roadList.sl
 <ul class="nr-list">${relevant.slice(0, 40).map(row).join('')}</ul>
 ${dauer.length ? `<details class="more"><summary>${dauer.length} Dauerbaustellen in der Nähe</summary><ul class="nr-list">${dauer.slice(0, 60).map(row).join('')}</ul></details>` : ''}`;
     panel.querySelector('.nah-close').addEventListener('click', () => { go(B + '/?'); });
-    AB.mark(center.lat, center.lon);
+    AB.mark(center.lat, center.lon, r);
     AB.flyTo(center.lat, center.lon, r > 30 ? 8 : 9);
-    if (scroll) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Karte zeigt jetzt den Umkreis: dorthin scrollen, die Liste folgt direkt darunter
+    if (scroll) document.getElementById('karte').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   async function fromUrl(scroll) {
@@ -156,7 +157,7 @@ ${dauer.length ? `<details class="more"><summary>${dauer.length} Dauerbaustellen
     locBtn.disabled = true;
     // Sofort sichtbar machen, dass etwas passiert
     status('Dein Standort wird bestimmt … Falls dein Browser fragt, bitte „Erlauben“ wählen.', true);
-    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('karte').scrollIntoView({ behavior: 'smooth', block: 'start' });
     try {
       const pos = await AB.locate();
       history.pushState(null, '', `${B}/?nah=${pos.lat.toFixed(4)},${pos.lon.toFixed(4)}`);
