@@ -251,7 +251,7 @@ struct RoadView: View {
     private func filters(_ d: RoadDetail) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Picker("Zeitraum", selection: $when) {
-                ForEach(When.allCases) { w in Text(w == .geplant ? w.rawValue : "\(w.rawValue) \(count(w, d))").tag(w) }
+                ForEach(When.allCases) { w in Text(w == .geplant ? w.rawValue : "\(w.rawValue) (\(count(w, d)))").tag(w) }
             }
             .pickerStyle(.segmented)
             HStack(spacing: 10) {
@@ -536,7 +536,9 @@ struct StopRow: View {
         let f = ISO8601DateFormatter()
         guard let s = item.start.flatMap(f.date(from:)), let e = item.end.flatMap(f.date(from:)) else { return item.when }
         let day = Date.FormatStyle().day(.twoDigits).month(.twoDigits).year()
-        let time = Date.FormatStyle().hour(.twoDigits(amPM: .omitted)).minute()
+        let time = Date.FormatStyle().hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)
+        // Gleicher Tag: „12.10.2026 09:00 – 18:00 Uhr“, sonst beide Tage
+        if Calendar.current.isDate(s, inSameDayAs: e) { return "\(s.formatted(day)) \(s.formatted(time)) – \(e.formatted(time)) Uhr" }
         return "\(s.formatted(day)) \(s.formatted(time)) – \(e.formatted(day)) \(e.formatted(time)) Uhr"
     }
 
@@ -745,7 +747,9 @@ struct GroupRow: View {
         let f = ISO8601DateFormatter()
         guard let s = group.start.flatMap(f.date(from:)), let e = group.end.flatMap(f.date(from:)) else { return group.when }
         let day = Date.FormatStyle().day(.twoDigits).month(.twoDigits).year()
-        let time = Date.FormatStyle().hour(.twoDigits(amPM: .omitted)).minute()
+        let time = Date.FormatStyle().hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)
+        // Gleicher Tag: „12.10.2026 09:00 – 18:00 Uhr“, sonst beide Tage
+        if Calendar.current.isDate(s, inSameDayAs: e) { return "\(s.formatted(day)) \(s.formatted(time)) – \(e.formatted(time)) Uhr" }
         return "\(s.formatted(day)) \(s.formatted(time)) – \(e.formatted(day)) \(e.formatted(time)) Uhr"
     }
 
