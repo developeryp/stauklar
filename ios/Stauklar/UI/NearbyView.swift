@@ -52,6 +52,7 @@ struct NearbyView: View {
             .sorted { $0.1 < $1.1 }
         return VStack(alignment: .leading, spacing: 18) {
             Map(position: $camera) {
+                if case .place = target { UserAnnotation() }
                 if let center {
                     Annotation("", coordinate: center) {
                         Circle().fill(Color(red: 0.04, green: 0.52, blue: 1)).frame(width: 16, height: 16)

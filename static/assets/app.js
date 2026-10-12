@@ -304,6 +304,14 @@
       },
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    // Eigener Standort als blauer Punkt; wenn die Erlaubnis schon erteilt ist, ohne Nachfrage anzeigen
+    const geo = new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: false }, trackUserLocation: false, showUserLocation: true, fitBoundsOptions: { maxZoom: 11 } });
+    map.addControl(geo, 'top-right');
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: 'geolocation' }).then(st => {
+        if (st.state === 'granted') map.once('load', () => { const c = map.getCenter(), z = map.getZoom(); geo.trigger(); map.once('moveend', () => map.jumpTo({ center: c, zoom: z })); });
+      }).catch(() => {});
+    }
     map.touchZoomRotate.disableRotation();
     // Knopf zurück zur Übersicht (ganze Autobahn bzw. ganz Deutschland)
     map.addControl({

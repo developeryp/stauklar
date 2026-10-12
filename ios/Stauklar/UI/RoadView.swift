@@ -579,6 +579,7 @@ struct RoadMap: View {
 
     var body: some View {
         Map(position: $camera, interactionModes: modes) {
+            UserAnnotation()
             ForEach(detail.items) { it in
                 if it.geom.count > 1 { MapPolyline(coordinates: it.coordinates).stroke(Theme.sign.opacity(0.22), lineWidth: 4) }
             }
