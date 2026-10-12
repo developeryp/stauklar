@@ -22,7 +22,7 @@ struct RoadView: View {
     @State private var scrollTarget: String?
 
     enum When: String, CaseIterable, Identifiable {
-        case heute = "Heute", woche = "7 Tage", geplant = "Geplant", alle = "Alles"
+        case heute = "Heute", woche = "Ab morgen", geplant = "Später", alle = "Alles"
         var id: String { rawValue }
     }
 
@@ -82,12 +82,12 @@ struct RoadView: View {
         return d.items.filter { ids.contains($0.id) }
     }
 
-    /// Heute = gilt bis morgen früh, 7 Tage = beginnt innerhalb einer Woche, Geplant = beginnt erst nach heute
+    /// Heute = gilt heute (bis Mitternacht), Ab morgen = gilt in den nächsten 7 Tagen ab morgen, Später = erst danach
     private static func inWindow(_ g: Group, _ w: When) -> Bool {
         switch w {
         case .heute: return g.heute
         case .woche: return g.woche
-        case .geplant: return !g.heute
+        case .geplant: return !g.heute && !g.woche
         case .alle: return true
         }
     }

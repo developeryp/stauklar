@@ -78,7 +78,7 @@ struct NearbyView: View {
 
             Text(relevant.isEmpty
                  ? "Im Umkreis von \(Int(radius)) km ist heute keine Sperrung und keine Baustelle gemeldet. Gute Fahrt!"
-                 : "\(relevant.count) \(relevant.count == 1 ? "Meldung" : "Meldungen") für heute und heute Nacht im Umkreis von \(Int(radius)) km, die nächste zuerst.")
+                 : "\(relevant.count) \(relevant.count == 1 ? "Meldung" : "Meldungen") für heute im Umkreis von \(Int(radius)) km, die nächste zuerst.")
                 .font(.subheadline).foregroundStyle(.secondary)
 
             if !roadsNear.isEmpty {

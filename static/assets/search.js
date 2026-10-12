@@ -121,7 +121,7 @@
     const where = center.name === 'deinem Standort' ? 'dich' : esc(center.name);
     panel.innerHTML = `<div class="nah-head">
   <div><p class="eyebrow">Umkreis ${r} km</p><h2>Rund um ${where}</h2>
-  <p class="sub">${relevant.length ? `${relevant.length} ${relevant.length === 1 ? 'Meldung' : 'Meldungen'} für heute und heute Nacht, die nächste zuerst.` : 'Heute keine Sperrungen und Baustellen in der Nähe. Gute Fahrt!'}</p></div>
+  <p class="sub">${relevant.length ? `${relevant.length} ${relevant.length === 1 ? 'Meldung' : 'Meldungen'} für heute, die nächste zuerst.` : 'Heute keine Sperrungen und Baustellen in der Nähe. Gute Fahrt!'}</p></div>
   <button type="button" class="nah-close" aria-label="Umkreis schließen">✕</button>
 </div>
 ${roadList.length ? `<p class="nah-roads">Autobahnen in der Nähe: ${roadList.slice(0, 10).map(([rd, d]) => `<a class="shield" href="${B}/${rd.toLowerCase()}/" title="${Math.round(d)} km entfernt">${esc(rd)}</a>`).join('')}</p>` : ''}

@@ -23,7 +23,9 @@ BASE = (os.environ.get("BASE_PATH") or "").rstrip("/")
 APP_STORE_URL = os.environ.get("APP_STORE_URL") or ""
 APP_ID = os.environ.get("APP_ID") or ""
 NOW = dt.datetime.now(TZ).replace(tzinfo=None, second=0, microsecond=0)
-TONIGHT_END = (NOW + dt.timedelta(days=1)).replace(hour=6, minute=0)
+# „Heute“ = bis Mitternacht; alles ab morgen gehört zu „Ab morgen“ (die nächsten 7 Tage)
+TONIGHT_END = (NOW + dt.timedelta(days=1)).replace(hour=0, minute=0)
+TOMORROW = TONIGHT_END
 WEEK_END = NOW + dt.timedelta(days=7)
 SHORT = dt.timedelta(days=3)  # Zeitfenster bis 3 Tage gelten als kurzfristige Sperrung
 
@@ -251,7 +253,7 @@ def human_when(w):
         return f"jetzt bis {fdate(en)}"
     if en - s <= dt.timedelta(hours=30):
         # 18 Uhr heute bis 6 Uhr morgen früh ist für Menschen „heute Nacht“, nicht „morgen“
-        tonight = (s.date() == NOW.date() and s.hour >= 18) or ((s.date() - NOW.date()).days == 1 and s.hour < 6)
+        tonight = s.date() == NOW.date() and s.hour >= 18
         return f"{'heute Nacht' if tonight else day_word(s)} {s:%H:%M}–{hm(en)}"
     return f"ab {day_word(s)} {s:%H:%M}, bis {fdate(en)}"
 
@@ -424,7 +426,9 @@ def enrich(it):
     """Zeit-Filter und Schweregrad für eine Meldung."""
     wins = it["wins"]
     it["w_heute"] = any(s < TONIGHT_END and en > NOW for s, en in wins)
-    it["w_woche"] = any(s < WEEK_END and en > NOW for s, en in wins)
+    # Ab morgen: beginnt morgen oder später (innerhalb 7 Tagen) oder läuft morgen noch tagsüber.
+    # Eine Nachtbaustelle „heute 22 bis morgen 5 Uhr“ gehört nur zu „Heute“.
+    it["w_woche"] = any((TOMORROW <= s < WEEK_END) or (s < TOMORROW and en > TOMORROW + dt.timedelta(hours=12)) for s, en in wins)
     long_win = any(en - s > SHORT for s, en in wins if en > NOW and s < WEEK_END)
     # Das API-Feld isBlocked ist immer „false“. Vollsperrung daher aus Spurdaten oder Text ableiten.
     sym = it.get("lanes") or []
@@ -669,7 +673,7 @@ def group_items(items):
 
 def stop(g, labels, href=None):
     when = g["when"]
-    tokens = " ".join(k for k, on in (("heute", g["heute"]), ("woche", g["woche"]), ("geplant", not g["heute"]), ("alle", True)) if on)
+    tokens = " ".join(k for k, on in (("heute", g["heute"]), ("woche", g["woche"]), ("geplant", not g["heute"] and not g["woche"]), ("alle", True)) if on)
     q = " ".join([g["title"], g["section"], g["project"]] + g["raw_titles"] + [d["raw"] for d in g["dirs"]]).lower()
     now_badge = '<span class="badge now">jetzt</span>' if g["active"] else ""
     if g["active"]:
@@ -784,7 +788,7 @@ def lage(road, items, warns):
         pl = [p for i in short for p in places_of(i["title"])]
         hot = max(set(pl), key=pl.count) if pl else ""
         where = f" Am meisten los ist rund um {hot}." if hot and pl.count(hot) >= 2 else ""
-        out.append(f"Heute und heute Nacht gibt es {plural(len(short), 'Baustelle oder gesperrte Auf-/Abfahrt', 'Baustellen und gesperrte Auf-/Abfahrten')}.{when}{where}")
+        out.append(f"Heute gibt es {plural(len(short), 'Baustelle oder gesperrte Auf-/Abfahrt', 'Baustellen und gesperrte Auf-/Abfahrten')}.{when}{where}")
     if warns:
         out.append(f"Gerade {'liegt' if len(warns) == 1 else 'liegen'} {plural(len(warns), 'Meldung', 'Meldungen')} zu Stau, Unfall oder Gefahren vor.")
     if dauer:
@@ -907,9 +911,9 @@ def road_page(road, d, near):
     closed = [i for i in today if i["sev"] in ("voll", "sperr")]
     if closed:
         ex = "; ".join(f"{i['title']} ({human_when(i['show'])})" for i in closed[:3])
-        faq.append((f"Ist die {road} heute gesperrt?", f"Ja, heute und heute Nacht gibt es {plural(len(closed), 'Sperrung', 'Sperrungen')}, zum Beispiel: {ex}."))
+        faq.append((f"Ist die {road} heute gesperrt?", f"Ja, heute gibt es {plural(len(closed), 'Sperrung', 'Sperrungen')}, zum Beispiel: {ex}."))
     elif n_short:
-        faq.append((f"Ist die {road} heute gesperrt?", f"Eine Sperrung ist nicht gemeldet, aber {plural(n_short, 'Baustelle', 'Baustellen')} heute und heute Nacht, oft mit gesperrten Spuren."))
+        faq.append((f"Ist die {road} heute gesperrt?", f"Eine Sperrung ist nicht gemeldet, aber {plural(n_short, 'Baustelle', 'Baustellen')} heute, oft mit gesperrten Spuren."))
     else:
         faq.append((f"Ist die {road} heute gesperrt?", f"Für heute sind auf der {road} keine Sperrungen oder Baustellen gemeldet (Stand {NOW:%d.%m.%Y, %H:%M} Uhr)."))
     faq.append((f"Wie viele Baustellen gibt es auf der {road}?", f"Heute gelten {plural(len(today), 'Baustelle oder Sperrung', 'Baustellen und Sperrungen')}, davon {n_dauer} Dauerbaustellen. In den nächsten 7 Tagen sind es {len(week)}."))
@@ -947,7 +951,7 @@ def road_page(road, d, near):
 </section>
 
 <div class="controls" id="controls"><div class="controls-in">
-  {seg("w", [("heute", "Heute"), ("woche", "7 Tage"), ("geplant", "Geplant"), ("alle", "Alles")], default_w)}
+  {seg("w", [("heute", "Heute"), ("woche", "Ab morgen"), ("geplant", "Später"), ("alle", "Alles")], default_w)}
   {seg("d", dir_opts, "") if len(dir_opts) > 2 else ''}
   <div class="legend chips" id="sevf" role="group" aria-label="Nach Art filtern">{''.join(f'<button type="button" class="chip" aria-pressed="true" data-sev="{k}"><i class="sw {k}"></i>{t}</button>' for k, t in SEV_CHIPS)}</div>
   <button type="button" class="locate" id="locate"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M14.3 1.7 1.9 6.6c-.7.3-.6 1.3.1 1.5l5 1.4 1.4 5c.2.7 1.2.8 1.5.1l4.9-12.4c.3-.7-.4-1.4-1.1-1.1z" fill="currentColor"/></svg><span class="lbl">In meiner Nähe</span></button>
@@ -1043,14 +1047,14 @@ def index_page(roads, data):
     <p class="quick links"><a href="/vollsperrungen/">Alle Vollsperrungen</a><a href="/wochenende/">Am Wochenende</a><a href="/stadt/">Nach Stadt</a></p>
     </div>
     <aside class="now-box" aria-label="Lage in Deutschland">
-      <p class="now-h">Deutschland heute und heute Nacht</p>
+      <p class="now-h">Deutschland heute</p>
       <ul class="kpis stack"><li class="k-voll"><b>{n_full}</b>Vollsperrungen</li><li class="k-kurz"><b>{n_short}</b>Baustellen &amp; gesperrte Auf-/Abfahrten</li><li class="k-live"><b>{n_warn}</b>Staus &amp; Gefahren gerade</li></ul>
     </aside>
   </div>
 </section>
 
 <section class="block wide" id="karte">
-  <div class="today-head"><h2>Karte: heute und heute Nacht</h2><p class="sub">Hineinzoomen zeigt den genauen Abschnitt, Antippen die Details.</p></div>
+  <div class="today-head"><h2>Karte: heute</h2><p class="sub">Hineinzoomen zeigt den genauen Abschnitt, Antippen die Details.</p></div>
   <div id="map" class="map-home" data-src="/heute.json" role="region" aria-label="Deutschlandkarte"></div>
   <div class="legend chips" id="sevf" role="group" aria-label="Karte filtern">{''.join(f'<button type="button" class="chip" aria-pressed="true" data-sev="{k}"><i class="sw {k}"></i>{t}</button>' for k, t in SEV_CHIPS)}<span class="hint">Antippen zum Ein- und Ausblenden</span></div>
 </section>
@@ -1413,9 +1417,9 @@ def city_page(city, roads, data):
   <div class="mapcol"><div id="map" data-src="/heute.json" data-center="{lat},{lon}" data-radius="{NEAR_CITY_KM}" role="region" aria-label="Karte rund um {e(city)}"></div>
   <div class="legend"><span><i class="sw voll"></i>Vollsperrung</span><span><i class="sw sperr"></i>Auf-/Abfahrt zu</span><span><i class="sw kurz"></i>Baustelle</span><span><i class="sw live"></i>Stau &amp; Gefahr</span><span class="hint">Antippen für Details</span></div></div>
   <div class="listcol">
-    <h2 class="route-h">Jetzt und heute Nacht <span class="route-n">{len(today) + len(warns)}</span></h2>
+    <h2 class="route-h">Heute <span class="route-n">{len(today) + len(warns)}</span></h2>
     {ev_list([warn_card(r, w) for _, r, w in warns] + [ev_card(r, g) for _, r, g in today[:40]], "Für heute ist im Umkreis keine Sperrung und keine Baustelle gemeldet. Gute Fahrt!")}
-    {f'<h2 class="route-h">Nächste 7 Tage <span class="route-n">{len(week)}</span></h2>{ev_list([ev_card(r, g) for _, r, g in week[:40]])}' if week else ''}
+    {f'<h2 class="route-h">Ab morgen <span class="route-n">{len(week)}</span></h2>{ev_list([ev_card(r, g) for _, r, g in week[:40]])}' if week else ''}
     {f'<h2 class="route-h">Dauerbaustellen <span class="route-n">{len(dauer)}</span></h2>{ev_list([ev_card(r, g) for _, r, g in dauer[:60]])}' if dauer else ''}
   </div>
 </div>
@@ -1457,7 +1461,7 @@ def closures_page(roads, data):
         lst.sort(key=lambda x: (num_key(x[0]), x[1]["show"][0]))
     sec = lambda h, lst, empty: f'<section class="block"><h2>{h} <span class="route-n">{len(lst)}</span></h2>{ev_list([ev_card(r, g) for r, g in lst], empty)}</section>'
     title = f"Alle Vollsperrungen auf deutschen Autobahnen: jetzt, heute, geplant | {SITE_NAME}"
-    desc = f"{len(now)} Vollsperrungen laufen gerade, {len(today)} weitere heute und heute Nacht, {len(week)} diese Woche, {len(later)} geplant. Jede mit Zeitraum, Richtung und Karte. Stand {NOW:%d.%m.%Y, %H:%M} Uhr."
+    desc = f"{len(now)} Vollsperrungen laufen gerade, {len(today)} weitere heute, {len(week)} ab morgen, {len(later)} geplant. Jede mit Zeitraum, Richtung und Karte. Stand {NOW:%d.%m.%Y, %H:%M} Uhr."
     body = f"""
 <main>
 <section class="hero st-{'rot' if now or today else 'gelb'}"><div class="hero-in">{crumbs_html(("Vollsperrungen", "/vollsperrungen/"))}<h1>Vollsperrungen auf deutschen Autobahnen</h1>
@@ -1465,8 +1469,8 @@ def closures_page(roads, data):
 <p class="quick"><a class="btn ghost" href="/wochenende/">Am Wochenende</a> <a class="btn ghost" href="/stadt/">Nach Stadt</a></p></div></section>
 <div class="after">
 {sec("Jetzt gesperrt", now, "Gerade ist keine Autobahn voll gesperrt.")}
-{sec("Heute und heute Nacht", today, "Für den Rest des Tages ist keine weitere Vollsperrung gemeldet.")}
-{sec("Diese Woche", week, "In den nächsten 7 Tagen ist keine weitere Vollsperrung gemeldet.")}
+{sec("Heute", today, "Für den Rest des Tages ist keine weitere Vollsperrung gemeldet.")}
+{sec("Ab morgen", week, "In den nächsten 7 Tagen ist keine weitere Vollsperrung gemeldet.")}
 {sec("Später geplant", later, "Nichts Weiteres angekündigt.")}
 <section class="block"><h2>Woher die Daten kommen</h2><p class="txt">Alle Sperrungen stammen von der Autobahn GmbH des Bundes und werden alle 15 Minuten neu geladen. Als Vollsperrung zählt, was die Autobahn GmbH als „Vollsperrung“ meldet oder wo alle Fahrstreifen einer Richtung gesperrt sind. Kurzfristige Änderungen vor Ort sind möglich.</p></section>
 </div>
