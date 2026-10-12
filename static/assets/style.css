@@ -3,8 +3,8 @@
    Flächen in Hellgrau statt Rahmen. Farbe trägt nur Bedeutung (Sperrung, Baustelle, Stau). */
 
 :root{
-  --bg:#ffffff; --bg-2:#f5f5f7; --surface:#ffffff; --fill:#f5f5f7; --fill-2:#e8e8ed;
-  --ink:#1d1d1f; --muted:#6e6e73; --hair:rgba(0,0,0,.08); --hair-2:rgba(0,0,0,.14);
+  --bg:#f2f6fc; --bg-2:#e8eff9; --surface:#fafcff; --fill:#e4ecf8; --fill-2:#d6e2f3;
+  --ink:#1d1d1f; --muted:#6e6e73; --hair:rgba(29,88,180,.10); --hair-2:rgba(29,88,180,.18);
   --accent:#0071e3; --link:#0066cc; --on-accent:#ffffff;
   --sign:#1d58b4; --sign-fg:#ffffff;
   --voll:#d70015; --sperr:#009e9e; --kurz:#ff8a00; --dauer:#9b7b56; --live:#8a3ffc; --ok:#1f9d55;
