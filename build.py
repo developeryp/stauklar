@@ -841,8 +841,9 @@ def page(title, desc, path, body, jsonld=(), extra_head="", body_class=""):
 <meta property="og:locale" content="de_DE">
 <meta name="theme-color" content="#1650a8">
 {f'<meta name="apple-itunes-app" content="app-id={APP_ID}, app-argument={canonical}">' if APP_ID else ''}
-<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/favicon-32.png?v=3" sizes="32x32" type="image/png">
+<link rel="shortcut icon" href="/favicon.ico?v=3">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3">
 <meta property="og:image" content="{SITE_URL}/icon-512.png">
 <link rel="stylesheet" href="/assets/style.css?v={VER}">
 {ld}{extra_head}
