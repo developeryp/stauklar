@@ -19,7 +19,10 @@ actor API {
     func get<T: Decodable>(_ path: String, as type: T.Type = T.self) async throws -> T {
         let url = base.appendingPathComponent(path)
         do {
-            let data = try await fetch(url)
+            // Minutengenauer Zeitstempel umgeht den Zwischenspeicher von GitHub Pages (sonst bis zu 10 Minuten alte Daten)
+            var c = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+            c.queryItems = [URLQueryItem(name: "t", value: String(Int(Date().timeIntervalSince1970 / 60)))]
+            let data = try await fetch(c.url ?? url)
             Self.writeCache(path, data)
             return try decoder.decode(T.self, from: data)
         } catch {
