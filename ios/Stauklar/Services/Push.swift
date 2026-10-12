@@ -46,6 +46,14 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
         didSet { UserDefaults.standard.set(alertsOn, forKey: "alertsOn"); Task { await sync() } }
     }
 
+    @Published var alertsAll: Bool = UserDefaults.standard.bool(forKey: "alertsAll") {
+        didSet { UserDefaults.standard.set(alertsAll, forKey: "alertsAll"); Task { await sync() } }
+    }
+    /// Arten, bei denen sofort eine Nachricht kommt (voll, sperr, kurz, dauer, live); Standard: nur Vollsperrungen
+    @Published var alertKinds: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "alertKinds") ?? ["voll"]) {
+        didSet { UserDefaults.standard.set(Array(alertKinds).sorted(), forKey: "alertKinds"); Task { await sync() } }
+    }
+
     private var token: String? {
         get { UserDefaults.standard.string(forKey: "apnsToken") }
         set { UserDefaults.standard.set(newValue, forKey: "apnsToken") }
@@ -86,7 +94,8 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
         // Serverfunktion register_device: legt an oder aktualisiert, ohne dass die App die Tabelle lesen darf
         let body: [String: Any] = ["p_token": token, "p_platform": "ios", "p_env": env, "p_roads": roads,
                                    "p_tz": TimeZone.current.identifier, "p_digest_time": digestTime,
-                                   "p_digest_on": digestOn, "p_alerts_on": alertsOn]
+                                   "p_digest_on": digestOn, "p_alerts_on": !alertKinds.isEmpty, "p_alerts_all": alertKinds.count == 5,
+                                   "p_alert_kinds": Array(alertKinds).sorted()]
         var req = URLRequest(url: Config.supabaseURL.appendingPathComponent("rest/v1/rpc/register_device"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")

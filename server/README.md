@@ -2,6 +2,8 @@
 
 Supabase-Projekt „Stauklar“ (`lcpfcgbfsibmankfwsqn`, Region Frankfurt, kostenloser Tarif).
 
+- `migrations/004_push_alert_kinds.sql`: Sofortmeldung je Art (`alert_kinds`: voll, sperr, kurz, dauer, live).
+- `migrations/003_push_alerts_all.sql`: Vorstufe (alle Meldungen an/aus).
 - `migrations/002_push_switches.sql`: Morgenlage (`digest_on`) und Sofortmeldung (`alerts_on`) je Gerät abschaltbar.
 - `migrations/001_push.sql`: Tabellen `devices` (Token + Lieblingsstrecken) und `sent` (schon verschickte Meldungen),
   Funktion `get_secret()` für den Vault, Erweiterungen pg_cron und pg_net.

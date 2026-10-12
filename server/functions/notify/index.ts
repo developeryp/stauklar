@@ -1,6 +1,6 @@
 // Stauklar Push-Server (Supabase Edge Function).
 // Läuft jede Minute per pg_cron. Zwei Aufgaben:
-//  1. Sofortmeldung: neue Vollsperrung heute auf einer Lieblingsstrecke → Push, sobald die Daten da sind.
+//  1. Sofortmeldung: neue Vollsperrung (oder, wenn gewählt, jede neue Meldung) heute auf einer Lieblingsstrecke → Push.
 //  2. Morgenlage genau zur Wunschzeit des Geräts (Standard 06:30 Ortszeit): ein Push mit allen Sperrungen heute auf den eigenen Strecken.
 // Geheimnisse (APNs-Schlüssel, Cron-Secret) liegen im Supabase Vault, abrufbar über public.get_secret().
 
@@ -10,9 +10,11 @@ const SITE = "https://stauklar.de/api/v1";
 const TOPIC = "de.stauklar.app";
 const TEAM_ID = "6AY5V43PJ2";
 
-type Device = { token: string; env: string; roads: string[]; tz: string; digest_time?: string; digest_on?: boolean; alerts_on?: boolean };
+type Device = { token: string; env: string; roads: string[]; tz: string; digest_time?: string; digest_on?: boolean; alerts_on?: boolean; alerts_all?: boolean; alert_kinds?: string[] | null };
 type Item = { id: string; title: string; sev: string; label: string; heute: boolean; active: boolean; when: string; start: string | null };
-type Road = { id: string; items: Item[] };
+type Group = { title: string; sev: string; label: string; heute: boolean; when: string; start: string | null };
+type Warn = { title: string; dir: string; text: string[] };
+type Road = { id: string; items: Item[]; groups?: Group[]; warns?: Warn[] };
 
 // ---------- Supabase (REST mit Service-Role) ----------
 const sb = (path: string, init: RequestInit = {}) =>
@@ -81,7 +83,7 @@ Deno.serve(async (req) => {
   const cronSecret = await secret("cron_secret");
   if (req.headers.get("x-cron-secret") !== cronSecret) return new Response("Nicht erlaubt", { status: 401 });
 
-  const devices = (await (await sb("devices?select=token,env,roads,tz,digest_time,digest_on,alerts_on")).json()) as Device[];
+  const devices = (await (await sb("devices?select=token,env,roads,tz,digest_time,digest_on,alerts_on,alerts_all,alert_kinds")).json()) as Device[];
   const stats = { devices: devices.length, pushed: 0, removed: 0, errors: 0, skipped: 0 };
   if (!devices.some((d) => d.roads?.length)) return Response.json(stats);
 
@@ -92,8 +94,12 @@ Deno.serve(async (req) => {
   } catch (e) {
     return Response.json({ ...stats, error: `APNs nicht konfiguriert: ${(e as Error).message}` }, { status: 500 });
   }
-  const sentRows = (await (await sb("sent?select=token,key")).json()) as { token: string; key: string }[];
+  const sentRows = (await (await sb("sent?select=token,key,sent_at")).json()) as { token: string; key: string; sent_at: string }[];
   const sent = new Set(sentRows.map((s) => `${s.token}|${s.key}`));
+  // Was noch aktuell ist, darf beim Aufräumen nach 14 Tagen nicht verschwinden (sonst käme es erneut als „neu“)
+  const stale = new Set(sentRows.filter((s) => Date.parse(s.sent_at) < Date.now() - 7 * 864e5).map((s) => `${s.token}|${s.key}`));
+  const refresh: { token: string; key: string; sent_at: string }[] = [];
+  const seen = (token: string, k: string) => { if (stale.has(`${token}|${k}`)) refresh.push({ token, key: k, sent_at: new Date().toISOString() }); };
 
   for (const d of devices) {
     if (!d.roads?.length) { stats.skipped++; continue; }
@@ -109,14 +115,41 @@ Deno.serve(async (req) => {
     // Neues Gerät: bestehende Vollsperrungen nur merken, nicht melden (sonst kommt beim Einschalten ein Schwall alter Meldungen)
     const isNew = !sentRows.some((s) => s.token === d.token);
 
+    // Gewählte Arten (voll, sperr, kurz, dauer, live); ältere App-Versionen schicken nur alerts_on/alerts_all
+    const kinds = new Set(d.alert_kinds ?? (d.alerts_on === false ? [] : d.alerts_all ? ["voll", "sperr", "kurz", "dauer", "live"] : ["voll"]));
+    // Art gerade erst gewählt: Bestehendes nur merken, nicht melden (Merker k/<art>/_)
+    const fresh0 = (k: string) => !sent.has(`${d.token}|k/${k}/_`);
+    for (const k of kinds) { if (k !== "voll" && fresh0(k)) newSent.push(`k/${k}/_`); seen(d.token, `k/${k}/_`); }
+
     for (const rid of d.roads) {
       const r = await road(rid);
       if (!r) continue;
+      // Neue Meldungen der gewählten Arten (außer Vollsperrung, die läuft unten wie bisher)
+      const fresh: string[] = [];
+      for (const g of (r.groups ?? []).filter((g) => g.heute && g.sev !== "voll" && kinds.has(g.sev))) {
+        // Je Maßnahme einmal, nicht bei jedem Termin einer wiederkehrenden Baustelle
+        const k = `k/${g.sev}/${rid}/${g.title}`;
+        seen(d.token, k);
+        if (!sent.has(`${d.token}|${k}`)) { newSent.push(k); if (!fresh0(g.sev)) fresh.push(`${g.label}: ${g.title}, ${g.when}`); }
+      }
+      if (kinds.has("live")) {
+        for (const w of r.warns ?? []) {
+          const k = `k/live/${rid}/${w.title}/${w.dir}/${w.text?.[0] ?? ""}`;
+          seen(d.token, k);
+          if (!sent.has(`${d.token}|${k}`)) { newSent.push(k); if (!fresh0("live")) fresh.push(`${w.text?.[0]?.split(",")[0] || "Stau oder Gefahr"}: ${w.title}`); }
+        }
+      }
+      if (fresh.length && !isNew) {
+        messages.push(fresh.length === 1
+          ? { title: `${rid}: neue Meldung`, body: fresh[0], road: rid }
+          : { title: `${rid}: ${fresh.length} neue Meldungen`, body: fresh.slice(0, 4).join("\n") + (fresh.length > 4 ? `\nund ${fresh.length - 4} weitere` : ""), road: rid });
+      }
       const cl = closures(r);
       for (const it of cl) {
         const k = key(rid, it);
+        seen(d.token, k);
         if (it.sev === "voll" && !sent.has(`${d.token}|${k}`)) {
-          if (!isNew && d.alerts_on !== false) messages.push({ title: `${rid} voll gesperrt`, body: `${it.title}, ${it.when}`, road: rid });
+          if (!isNew && kinds.has("voll")) messages.push({ title: `${rid} voll gesperrt`, body: `${it.title}, ${it.when}`, road: rid });
           newSent.push(k);
         }
       }
@@ -147,6 +180,9 @@ Deno.serve(async (req) => {
       await sb("sent", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates" },
         body: JSON.stringify(newSent.map((k) => ({ token: d.token, key: k }))) });
     }
+  }
+  if (refresh.length) {
+    await sb("sent?on_conflict=token,key", { method: "POST", headers: { Prefer: "resolution=merge-duplicates" }, body: JSON.stringify(refresh) });
   }
   await sb(`sent?sent_at=lt.${new Date(Date.now() - 14 * 864e5).toISOString()}`, { method: "DELETE" });
   return Response.json(stats);

@@ -14,33 +14,55 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    if push.authorized {
-                        Label("Benachrichtigungen sind an", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                        Toggle("Morgenlage", isOn: $push.digestOn)
-                        if push.digestOn {
-                            DatePicker("Uhrzeit", selection: digestBinding, displayedComponents: .hourAndMinute)
+                // Ohne Erlaubnis von iOS: nur der Knopf zum Erlauben, alle Einstellungen darunter gesperrt
+                if !push.authorized {
+                    Section {
+                        if push.denied {
+                            Button { openSystemSettings() } label: {
+                                Label("In den iOS-Einstellungen erlauben", systemImage: "bell.slash")
+                            }
+                        } else {
+                            Button { Task { await push.enable() } } label: {
+                                Label("Benachrichtigungen erlauben", systemImage: "bell.badge.fill")
+                            }
                         }
-                        Toggle("Sofort bei neuen Vollsperrungen", isOn: $push.alertsOn)
-                        Button("In den iOS-Einstellungen ändern") { openSystemSettings() }
-                    } else if push.denied {
-                        Label("In den iOS-Einstellungen ausgeschaltet", systemImage: "bell.slash").foregroundStyle(.secondary)
-                        Button("iOS-Einstellungen öffnen") { openSystemSettings() }
-                    } else {
-                        Button {
-                            Task { await push.enable() }
-                        } label: {
-                            Label("Benachrichtigungen einschalten", systemImage: "bell.badge.fill")
-                        }
+                        if let e = push.lastError { Text(e).font(.caption).foregroundStyle(.secondary) }
+                    } footer: {
+                        Text(push.denied
+                             ? "Benachrichtigungen sind für Stauklar in den iOS-Einstellungen ausgeschaltet."
+                             : "Damit Stauklar dir Nachrichten schicken darf, braucht es einmal deine Erlaubnis.")
                     }
-                    if let e = push.lastError { Text(e).font(.caption).foregroundStyle(.secondary) }
+                }
+
+                Section {
+                    Toggle("Morgenlage", isOn: $push.digestOn)
+                    if push.digestOn {
+                        DatePicker("Uhrzeit", selection: digestBinding, displayedComponents: .hourAndMinute)
+                    }
                 } header: {
                     Text("Benachrichtigungen")
                 } footer: {
                     Text(store.favorites.isEmpty
                          ? "Gilt für deine Strecken. Du hast noch keine: Tipp auf einer Autobahn-Seite auf den Stern."
-                         : "Morgenlage: zur Wunschzeit die Lage auf deinen Strecken, nur wenn dort etwas gesperrt ist. Sofortmeldung: eine Nachricht bei jeder neuen Vollsperrung, auch nachts. Beides einzeln abschaltbar.")
+                         : "Zur Wunschzeit die Lage auf deinen Strecken, nur wenn dort etwas gesperrt ist.")
                 }
+                .disabled(!push.authorized)
+
+                Section {
+                    ForEach(SevChip.all, id: \.0) { s, t in
+                        Toggle(isOn: kind(s.rawValue)) {
+                            HStack(spacing: 10) {
+                                Circle().fill(Theme.color(s)).frame(width: 10, height: 10)
+                                Text(t)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Sofort Bescheid bei neuer …")
+                } footer: {
+                    Text("Sobald auf deinen Strecken eine neue Meldung dieser Art auftaucht, auch nachts. Kommen mehrere gleichzeitig, gibt es eine Nachricht pro Autobahn.")
+                }
+                .disabled(!push.authorized)
 
                 Section {
                     if store.favorites.isEmpty {
@@ -103,6 +125,12 @@ struct SettingsView: View {
 
     private func openSystemSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+    }
+
+    /// Schalter für eine Art von Sofortmeldung
+    private func kind(_ k: String) -> Binding<Bool> {
+        Binding(get: { push.alertKinds.contains(k) },
+                set: { on in if on { push.alertKinds.insert(k) } else { push.alertKinds.remove(k) } })
     }
 
     /// „HH:mm“ ↔ Date für den Zeitwähler

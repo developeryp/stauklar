@@ -189,7 +189,7 @@ struct HomeView: View {
             HStack(spacing: 10) {
                 Image(systemName: push.authorized ? "bell.badge.fill" : "bell").foregroundStyle(Theme.accent)
                 Text(!push.authorized ? "Morgens Bescheid bekommen? Benachrichtigungen einschalten."
-                     : [push.digestOn ? "Morgenlage um \(push.digestTime) Uhr" : nil, push.alertsOn ? "Sofortmeldung bei Vollsperrungen" : nil]
+                     : [push.digestOn ? "Morgenlage um \(push.digestTime) Uhr" : nil, push.alertKinds.isEmpty ? nil : (push.alertKinds.count == 5 ? "Sofortmeldung bei allen neuen Meldungen" : push.alertKinds == ["voll"] ? "Sofortmeldung bei Vollsperrungen" : "Sofortmeldung bei \(push.alertKinds.count) Arten")]
                         .compactMap { $0 }.joined(separator: ", ").nonEmpty.map { $0 + "." } ?? "Benachrichtigungen sind ausgeschaltet.")
                     .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.leading)
                 Spacer(minLength: 0)
