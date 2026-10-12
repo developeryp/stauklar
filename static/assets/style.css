@@ -358,3 +358,16 @@ details[open] .chev{transform:rotate(225deg);margin:5px 6px 0 0}
 .sev-voll details{border-left-color:var(--voll)} .sev-sperr details{border-left-color:var(--sperr)} .sev-kurz details{border-left-color:var(--kurz)} .sev-live details{border-left-color:var(--live)}
 .ev a{border-left:4px solid var(--dauer)} .ev.sev-voll a{border-left-color:var(--voll)} .ev.sev-sperr a{border-left-color:var(--sperr)} .ev.sev-kurz a{border-left-color:var(--kurz)} .ev.sev-live a{border-left-color:var(--live)}
 .ev .s-cat{font-weight:600}
+
+/* Filterleiste: zwei Zeilen (Zeitraum, Richtung, Nähe, Suche | Arten), jede für sich seitlich wischbar */
+.controls-in{flex-direction:column;align-items:stretch;gap:8px}
+.ctl-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.ctl-row.chips{margin:0}
+@media (max-width:700px){
+  .controls-in{flex-wrap:nowrap;overflow:visible;padding-inline:0}
+  .ctl-row{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-inline:16px;gap:8px}
+  .ctl-row::-webkit-scrollbar{display:none}
+  .ctl-row > *{flex:none}
+  .ctl-row .find{flex:0 0 190px}
+  .ctl-row.chips .chip{font-size:13px;padding:5px 10px}
+}
