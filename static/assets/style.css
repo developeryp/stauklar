@@ -308,3 +308,36 @@ details[open] .chev{transform:rotate(225deg);margin:5px 6px 0 0}
   #map{height:42vh}
   .s-name{font-size:16px}
 }
+
+/* Landing-Pages: Vollsperrungen, Städte, Wochenende */
+.crumbs{font-size:13px;color:var(--muted);margin-bottom:6px}
+.crumbs a{color:var(--muted)}
+.evl{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.ev a{display:flex;gap:14px;align-items:flex-start;background:var(--fill);border-radius:var(--r);padding:13px 16px;color:var(--ink)}
+.ev a:hover{background:var(--fill-2);text-decoration:none}
+.ev .shield{margin-top:2px;flex:none}
+.ev-main{display:grid;gap:3px;min-width:0}
+.ev-when{font-size:13px;font-weight:600;color:var(--muted);display:flex;gap:8px;align-items:center}
+.ev.sev-voll .ev-when,.ev.sev-sperr .ev-when{color:var(--sperr)} .ev.sev-kurz .ev-when{color:var(--kurz)} .ev.sev-live .ev-when{color:var(--live)}
+.ev-name{font-weight:600;font-size:16px;letter-spacing:-.01em}
+.ev-sub{font-size:14px;color:var(--muted)}
+.ev-lane{display:block;margin-top:2px}
+.empty-note{color:var(--muted);background:var(--fill);border-radius:var(--r-s);padding:14px 16px;margin:0}
+.split.one{grid-template-columns:1fr}
+@media (min-width:960px){.split.one{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}}
+.facts{margin:0;display:grid;gap:12px}
+.facts div{display:grid;gap:2px;padding-bottom:12px;border-bottom:1px solid var(--hair)}
+.facts dt{font-size:13px;color:var(--muted)} .facts dd{margin:0;font-size:16px}
+.dirs.big{margin-top:18px;max-width:640px} .dirs.big .dirline{font-size:16px}
+.hero-ev .hero-top .shield{text-decoration:none}
+.cta-row{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 0}
+.btn{display:inline-flex;align-items:center;background:var(--accent);color:#fff;font-weight:600;padding:11px 18px;border-radius:999px;font-size:15px}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+.btn.ghost{background:var(--fill);color:var(--ink)}
+.evlink{display:inline-flex;margin:10px 0 0 10px;font-weight:600;font-size:14px}
+.quick.links{display:flex;gap:8px;flex-wrap:wrap} .quick.links a{background:var(--fill);padding:7px 13px;border-radius:999px;font-weight:600;font-size:14px;color:var(--ink)}
+.quick.links a:hover{background:var(--fill-2);text-decoration:none}
+.tiles.cities{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.tile.city{flex-direction:column;align-items:flex-start;padding:12px 14px;gap:2px;font-weight:600}
+.tile.city small{font-weight:500;color:var(--muted);font-size:12px}
+.txt{max-width:68ch;color:var(--muted);font-size:16px;line-height:1.5}

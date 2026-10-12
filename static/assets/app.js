@@ -361,7 +361,7 @@
       map.addSource('m', { type: 'geojson', data });
       const width = (a, b) => ['interpolate', ['linear'], ['zoom'], 7, a, 15, b];
       // Alle Abschnitte dezent im Hintergrund: zeigt den Verlauf der Autobahn, auch wenn gefiltert wird
-      if (route) map.addLayer({ id: 'ctx', type: 'line', source: 'm', filter: ['!', ['has', 'pt']],
+      if (route || el.dataset.focus) map.addLayer({ id: 'ctx', type: 'line', source: 'm', filter: ['!', ['has', 'pt']],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': '#1650a8', 'line-opacity': 0.28, 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3, 15, 8] } });
       map.addLayer({ id: 'casing', type: 'line', source: 'm', minzoom: 7,
@@ -386,6 +386,16 @@
         const target = location.hash.slice(1);
         if (target && document.getElementById(target)) { openStop(target); focusOnMap(target, false); }
         else overview();
+      } else if (el.dataset.focus) {
+        // Ereignisseite: nur diese Maßnahme farbig, der Rest der Autobahn als blauer Verlauf
+        visibleIds = [el.dataset.focus];
+        setFilters();
+        fitTo(linesOf(el.dataset.focus), 13);
+      } else if (el.dataset.center) {
+        // Stadtseite: Umkreis um die Stadt
+        const [lat, lon] = el.dataset.center.split(',').map(Number);
+        map.jumpTo({ center: [lon, lat], zoom: 9 });
+        AB.mark(lat, lon, Number(el.dataset.radius) || 30);
       } else if (AB._center) {
         map.jumpTo({ center: [AB._center.lon, AB._center.lat], zoom: AB._center.zoom });
       } else {
@@ -395,7 +405,7 @@
       for (const id of ['lines', 'points']) {
         map.on('click', id, ev => {
           const p = ev.features[0].properties;
-          if (route) { highlight(p.g); openStop(p.g); } else showPopup(p, ev.lngLat);
+          if (route) { highlight(p.g); openStop(p.g); } else if (p.url) showPopup(p, ev.lngLat);
         });
         map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });

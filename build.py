@@ -593,7 +593,7 @@ def group_items(items):
     return groups
 
 
-def stop(g, labels):
+def stop(g, labels, href=None):
     when = g["when"]
     tokens = " ".join(k for k, on in (("heute", g["heute"]), ("woche", g["woche"]), ("geplant", not g["heute"]), ("alle", True)) if on)
     q = " ".join([g["title"], g["section"], g["project"]] + g["raw_titles"] + [d["raw"] for d in g["dirs"]]).lower()
@@ -635,7 +635,7 @@ def stop(g, labels):
 <span class="dirs">{''.join(lines)}</span></span>
 <span class="chev" aria-hidden="true"></span>
 </summary>
-<div class="s-body"><dl>{''.join(f'<div><dt>{e(k)}</dt><dd>{e(v)}</dd></div>' for k, v in rows)}</dl>{maplink(g['id'], g['geom'])}</div>
+<div class="s-body"><dl>{''.join(f'<div><dt>{e(k)}</dt><dd>{e(v)}</dd></div>' for k, v in rows)}</dl>{maplink(g['id'], g['geom'])}{f'<a class="evlink" href="{href}">Eigene Seite mit Karte</a>' if href else ''}</div>
 </details></li>"""
 
 
@@ -743,7 +743,7 @@ def page(title, desc, path, body, jsonld=(), extra_head="", body_class=""):
 {body}
 <footer class="foot"><div class="foot-in">
 <p><strong>{e(SITE_NAME)}</strong> zeigt die offiziellen Daten der <a href="https://www.autobahn.de" rel="nofollow">Autobahn GmbH des Bundes</a>, alle 15 Minuten neu, Staus live. Angaben ohne Gewähr, vor der Fahrt zusätzlich Verkehrsfunk oder Navi prüfen.</p>
-<p><a href="/">Alle Autobahnen</a> · <a href="/impressum/">Impressum</a> · <a href="/datenschutz/">Datenschutz</a></p>
+<p><a href="/">Alle Autobahnen</a> · <a href="/vollsperrungen/">Vollsperrungen</a> · <a href="/wochenende/">Wochenende</a> · <a href="/stadt/">Nach Stadt</a> · <a href="/impressum/">Impressum</a> · <a href="/datenschutz/">Datenschutz</a></p>
 </div></footer>
 </body>
 </html>"""
@@ -800,7 +800,7 @@ def road_page(road, d, near):
     default_w = "heute" if today or warns else ("woche" if week else "alle")
 
     groups = d["groups"]
-    stops = sorted([(gr["t"], stop(gr, labels)) for gr in groups] + [(w["t"], warn_stop(w, labels)) for w in warns], key=lambda x: x[0])
+    stops = sorted([(gr["t"], stop(gr, labels, ev_href(road, gr) if gr["sev"] == "voll" else None)) for gr in groups] + [(w["t"], warn_stop(w, labels)) for w in warns], key=lambda x: x[0])
     route = "".join(h for _, h in stops)
 
     dir_opts = [("", "Beide Richtungen")]
@@ -954,6 +954,7 @@ def index_page(roads, data):
     </div>
     <button type="button" class="locate big" id="locate"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M14.3 1.7 1.9 6.6c-.7.3-.6 1.3.1 1.5l5 1.4 1.4 5c.2.7 1.2.8 1.5.1l4.9-12.4c.3-.7-.4-1.4-1.1-1.1z" fill="currentColor"/></svg><span class="lbl">In meiner Nähe</span></button>
     <p class="quick">Heute viel los: {''.join(f'<a class="shield" href="/{slug(r)}/">{e(r)}</a>' for r in top)}</p>
+    <p class="quick links"><a href="/vollsperrungen/">Alle Vollsperrungen</a><a href="/wochenende/">Am Wochenende</a><a href="/stadt/">Nach Stadt</a></p>
     </div>
     <aside class="now-box" aria-label="Lage in Deutschland">
       <p class="now-h">Deutschland bis morgen früh</p>
@@ -1132,6 +1133,333 @@ def write_api(roads, data, punkte):
     (api / "cities.json").write_text(json.dumps([dict(name=n, lat=la, lon=lo) for n, (la, lo) in CITIES.items()], ensure_ascii=False, separators=(",", ":")))
 
 
+# ---------- Landing-Pages: Vollsperrungen, Städte, Wochenende ----------
+# Suchanfragen sind konkret („A7 Maschener Kreuz gesperrt“, „Baustellen rund um Hamburg“, „Vollsperrung Wochenende“).
+# Dafür bekommt jede Vollsperrung, jede Stadt und das Wochenende eine eigene, verlinkte Seite.
+
+NEAR_CITY_KM = 30
+
+
+def slugify(s):
+    s = s.lower()
+    for a, b in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")):
+        s = s.replace(a, b)
+    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+    return s[:70].rstrip("-") or "abschnitt"
+
+
+def ev_href(road, g):
+    """Adresse der Ereignisseite: Abschnitt plus Starttag, damit sie über Wochen stabil bleibt."""
+    return f"/{slug(road)}/sperrung/{slugify(g['title'])}-{g['show'][0]:%Y-%m-%d}/"
+
+
+def group_href(road, g):
+    return ev_href(road, g) if g["sev"] == "voll" else f"/{slug(road)}/#{g['id']}"
+
+
+def ev_card(road, g, href=None, when=None):
+    """Kompakte Karte einer Maßnahme für Listen (Städte, Vollsperrungen, Wochenende)."""
+    href = href or group_href(road, g)
+    when = when or g["when"]
+    badge = '<span class="badge now">jetzt</span>' if g["active"] else ""
+    if g["active"]:
+        when = when.removeprefix("jetzt ")
+    sub = e(g["label"]) + (f" · {e(g['what'])}" if g["what"] else "")
+    # Spurtext der am stärksten betroffenen Richtung (gesperrt vor verengt)
+    texts = [d["laneText"] for d in g["dirs"] if d["laneText"]]
+    texts.sort(key=lambda t: ("gesperrt" in t, "Spur" not in t), reverse=True)
+    lane = f'<span class="ev-lane">{e(texts[0])}</span>' if texts else ""
+    return f"""<li class="ev sev-{g['sev']}"><a href="{href}"><span class="shield sm">{e(road)}</span><span class="ev-main"><span class="ev-when">{badge}{e(when)}</span><span class="ev-name">{e(g['title'])}</span><span class="ev-sub">{sub}{lane}</span></span></a></li>"""
+
+
+def warn_card(road, w):
+    txt = (w["text"] or ["aktuell"])[0]
+    return f"""<li class="ev sev-live"><a href="/{slug(road)}/#{w['id']}"><span class="shield sm">{e(road)}</span><span class="ev-main"><span class="ev-when"><span class="badge live">live</span>{e(txt)}</span><span class="ev-name">{e(w['title'])}</span><span class="ev-sub">Stau, Unfall oder Gefahr</span></span></a></li>"""
+
+
+def ev_list(cards, empty="Nichts gemeldet."):
+    return f'<ol class="evl">{"".join(cards)}</ol>' if cards else f'<p class="empty-note">{e(empty)}</p>'
+
+
+def breadcrumb(*steps):
+    items = [{"@type": "ListItem", "position": 1, "name": SITE_NAME, "item": SITE_URL + "/"}]
+    for n, (name, path) in enumerate(steps, 2):
+        items.append({"@type": "ListItem", "position": n, "name": name, "item": SITE_URL + path})
+    return {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": items}
+
+
+def crumbs_html(*steps):
+    parts = ['<a href="/">Start</a>'] + [f'<a href="{p}">{e(n)}</a>' for n, p in steps[:-1]] + [f"<span>{e(steps[-1][0])}</span>"]
+    return f'<nav class="crumbs" aria-label="Pfad">{" › ".join(parts)}</nav>'
+
+
+def webpage_ld(title):
+    return {"@context": "https://schema.org", "@type": "WebPage", "name": title, "dateModified": NOW.replace(tzinfo=TZ).isoformat(), "inLanguage": "de-DE"}
+
+
+def event_page(road, d, g, others):
+    labels = d["labels"]
+    path = ev_href(road, g)
+    s, en = g["show"]
+    if g["active"]:
+        status, st_cls = f"Jetzt voll gesperrt, bis {fdate(en)} {en:%H:%M} Uhr", "rot"
+    elif g["heute"]:
+        status, st_cls = f"Heute: {g['when']}", "rot"
+    elif g["woche"]:
+        status, st_cls = f"Diese Woche: {g['when']}", "gelb"
+    else:
+        status, st_cls = f"Geplant: {g['when']}", "gelb"
+
+    lines, rows = [], [("Zeitraum", fwin(g["show"]))]
+    if g["upcoming"] > 1:
+        rows.append(("Weitere Termine", f"{g['upcoming'] - 1} weitere, siehe Streckenseite"))
+    if g["total"] and g["total"].date() > en.date():
+        rows.append(("Gesamte Maßnahme bis", fdate(g["total"])))
+    dir_names = []
+    for dd in g["dirs"]:
+        lab = labels.get(dd["d"]) if dd["d"] else None
+        name = f'{lab["sym"]} Richtung {lab["name"]}' if lab else (dd["raw"] or "beide Richtungen")
+        dir_names.append(name)
+        graphic, _ = lanes(dd["lanes"])
+        txt = dd["laneText"] or "gesperrt"
+        lines.append(f'<span class="dirline"><span class="dl">{e(name)}</span>{graphic}<span class="dt">{e(txt)}</span></span>')
+        if dd["where"]:
+            rows.append((name, dd["where"]))
+        if dd["info"]:
+            rows.append(("Details", dd["info"].replace("Maximale Durchfahrtsbreite", "Breite").replace(" | ", " · ")))
+    for r in g["ramps"]:
+        lines.append(f'<span class="dirline ramp"><span class="dl">{e(r)}</span></span>')
+    if g["project"]:
+        rows.append(("Originalmeldung", g["project"]))
+    rows.append(("Quelle", f"Autobahn GmbH des Bundes, Stand {NOW:%d.%m.%Y, %H:%M} Uhr"))
+
+    where_txt = f" ({dir_names[0]})" if len(dir_names) == 1 else ""
+    title = f"{road} Vollsperrung {g['title']}: {g['when']} | {SITE_NAME}"
+    desc = f"Die {road} ist bei {g['title']}{where_txt} voll gesperrt: {g['when']}. Zeitraum, betroffene Richtung und genauer Abschnitt auf der Karte."
+    if g["what"]:
+        desc += f" Grund: {g['what']}."
+    faq = [
+        (f"Wann ist die {road} bei {g['title']} gesperrt?", f"Die Vollsperrung gilt {fwin(g['show'])}." + (f" Es gibt {g['upcoming'] - 1} weitere Termine." if g["upcoming"] > 1 else "")),
+        (f"Ist die {road} bei {g['title']} gerade gesperrt?", ("Ja, die Sperrung läuft gerade." if g["active"] else f"Im Moment nicht. Die Sperrung beginnt {fdate(s)} um {s:%H:%M} Uhr.") + f" Stand {NOW:%d.%m.%Y, %H:%M} Uhr."),
+        (f"Welche Richtung der {road} ist betroffen?", ("Betroffen: " + "; ".join(dir_names) + ".") if dir_names else "Die Autobahn GmbH nennt keine Richtung; vermutlich beide."),
+    ]
+    other_html = ev_list([ev_card(road, o) for o in others], "Keine weiteren Vollsperrungen gemeldet.") if others else ""
+
+    body = f"""
+<main>
+<section class="hero hero-ev st-{st_cls}">
+  <div class="hero-in">
+    {crumbs_html((road, f"/{slug(road)}/"), ("Vollsperrung", path))}
+    <div class="hero-top"><a class="shield xl" href="/{slug(road)}/">{e(road)}</a><span class="status"><i></i>{e(status)}</span></div>
+    <h1>Vollsperrung {e(road)}: {e(g['title'])}</h1>
+    <p class="lage">{e(SEV_LABEL['voll'])}{(' · ' + e(g['what'].removesuffix(' bis').removesuffix(' ab'))) if g['what'] else ''}. {e(g['when'][0].upper() + g['when'][1:])}.</p>
+    <div class="dirs big">{''.join(lines)}</div>
+  </div>
+</section>
+<div class="split one">
+  <div class="mapcol"><div id="map" data-src="/{slug(road)}/map.json" data-focus="{g['id']}" role="region" aria-label="Karte: {e(g['title'])}"></div>
+  <div class="legend"><span><i class="sw voll"></i>Gesperrter Abschnitt</span><span class="hint">Blau: übrige Meldungen der {e(road)}</span></div></div>
+  <div class="listcol"><dl class="facts">{''.join(f'<div><dt>{e(k)}</dt><dd>{e(v)}</dd></div>' for k, v in rows)}</dl>
+  <p class="cta-row"><a class="btn" href="/{slug(road)}/#{g['id']}">Ganze {e(road)} ansehen</a> <a class="btn ghost" href="/vollsperrungen/">Alle Vollsperrungen</a></p></div>
+</div>
+<div class="after">
+<section class="block"><h2>Was heißt Vollsperrung?</h2><p class="txt">In der genannten Richtung geht nichts durch. Die Autobahn GmbH leitet über die beschilderte Umleitung (U-Nummern) oder die Bedarfsumleitung. Plane mehr Zeit ein oder fahre vor der Sperrung ab. Nachts und am Wochenende wird meist gesperrt, weil dann am wenigsten Verkehr ist.</p></section>
+<section class="block faq"><h2>Häufige Fragen</h2>{''.join(f'<details class="more"><summary>{e(q)}</summary><p>{e(a)}</p></details>' for q, a in faq)}</section>
+{f'<section class="block"><h2>Weitere Vollsperrungen auf der {e(road)}</h2>{other_html}</section>' if others else ''}
+{app_teaser(road)}
+</div>
+</main>"""
+    jsonld = [breadcrumb((road, f"/{slug(road)}/"), (f"Vollsperrung {g['title']}", path)), webpage_ld(title),
+              {"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [
+                  {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in faq]}]
+    return page(title, desc, path, body, jsonld, extra_head=MAP_HEAD, body_class="p-road p-ev")
+
+
+def city_hits(city, roads, data, km=NEAR_CITY_KM):
+    c = CITIES[city]
+    groups = [(dist_km(c, (g["lat"], g["lon"])), r, g) for r in roads for g in data[r]["groups"] if g["lat"] and dist_km(c, (g["lat"], g["lon"])) <= km]
+    warns = [(dist_km(c, (w["lat"], w["lon"])), r, w) for r in roads for w in data[r]["warns"] if w["lat"] and dist_km(c, (w["lat"], w["lon"])) <= km]
+    return groups, warns
+
+
+def city_page(city, roads, data):
+    lat, lon = CITIES[city]
+    path = f"/stadt/{slugify(city)}/"
+    groups, warns = city_hits(city, roads, data)
+    today = sorted([x for x in groups if x[2]["heute"] and x[2]["sev"] != "dauer"], key=lambda x: (-SEV_RANK[x[2]["sev"]], x[0]))
+    week = sorted([x for x in groups if x[2]["woche"] and not x[2]["heute"] and x[2]["sev"] != "dauer"], key=lambda x: (x[2]["show"][0], x[0]))
+    dauer = sorted([x for x in groups if x[2]["sev"] == "dauer" and x[2]["heute"]], key=lambda x: x[0])
+    warns.sort(key=lambda x: x[0])
+    roads_near = sorted({r for _, r, _ in groups} | {r for _, r, _ in warns}, key=num_key)
+    n_full = sum(g["sev"] == "voll" for _, _, g in today)
+    n_short = sum(g["sev"] in ("sperr", "kurz") for _, _, g in today)
+
+    parts = []
+    if n_full:
+        parts.append(plural(n_full, "Vollsperrung", "Vollsperrungen"))
+    if n_short:
+        parts.append(f"{n_short} kurzfristige {'Sperrung oder Baustelle' if n_short == 1 else 'Sperrungen und Baustellen'}")
+    if warns:
+        parts.append(plural(len(warns), "aktuelle Stau- oder Gefahrenmeldung", "aktuelle Stau- und Gefahrenmeldungen"))
+    joined = " und ".join(parts) if len(parts) < 3 else ", ".join(parts[:-1]) + " und " + parts[-1]
+    lage_txt = (f"Im Umkreis von {NEAR_CITY_KM} km um {city} gibt es heute " + joined + "."
+                if parts else f"Im Umkreis von {NEAR_CITY_KM} km um {city} ist heute nichts Kurzfristiges gemeldet.")
+    if dauer:
+        lage_txt += f" Dazu {plural(len(dauer), 'Dauerbaustelle', 'Dauerbaustellen')}."
+    if roads_near:
+        lage_txt += " Betroffene Autobahnen: " + ", ".join(roads_near[:8]) + ("." if len(roads_near) <= 8 else " und weitere.")
+
+    title = f"Sperrungen & Baustellen rund um {city} heute | {SITE_NAME}"
+    desc = f"{lage_txt} Jede Meldung auf der Karte, mit Spurgrafik. Stand {NOW:%d.%m.%Y, %H:%M} Uhr."
+    shields = "".join(f'<a class="shield" href="/{slug(r)}/">{e(r)}</a>' for r in roads_near)
+    body = f"""
+<main>
+<section class="hero hero-city st-{'rot' if n_full or warns else ('gelb' if n_short else 'gruen')}">
+  <div class="hero-in">
+    {crumbs_html(("Städte", "/stadt/"), (city, path))}
+    <div class="hero-top"><span class="status"><i></i>{e(city)} · {NEAR_CITY_KM} km Umkreis</span></div>
+    <h1>Rund um {e(city)}: Sperrungen und Baustellen heute</h1>
+    <p class="lage">{e(lage_txt)}</p>
+    <ul class="kpis"><li class="k-voll"><b>{n_full}</b>Vollsperrungen</li><li class="k-kurz"><b>{n_short}</b>kurzfristig bis morgen früh</li><li class="k-live"><b>{len(warns)}</b>Staus &amp; Gefahren</li><li class="k-dauer"><b>{len(dauer)}</b>Dauerbaustellen</li></ul>
+  </div>
+</section>
+<div class="split one">
+  <div class="mapcol"><div id="map" data-src="/heute.json" data-center="{lat},{lon}" data-radius="{NEAR_CITY_KM}" role="region" aria-label="Karte rund um {e(city)}"></div>
+  <div class="legend"><span><i class="sw voll"></i>Vollsperrung</span><span><i class="sw sperr"></i>Sperrung</span><span><i class="sw kurz"></i>kurzfristig</span><span><i class="sw live"></i>Stau/Gefahr</span><span class="hint">Antippen für Details</span></div></div>
+  <div class="listcol">
+    <h2 class="route-h">Jetzt und heute Nacht <span class="route-n">{len(today) + len(warns)}</span></h2>
+    {ev_list([warn_card(r, w) for _, r, w in warns] + [ev_card(r, g) for _, r, g in today[:40]], "Für heute ist im Umkreis nichts Kurzfristiges gemeldet. Gute Fahrt!")}
+    {f'<h2 class="route-h">Nächste 7 Tage <span class="route-n">{len(week)}</span></h2>{ev_list([ev_card(r, g) for _, r, g in week[:40]])}' if week else ''}
+    {f'<details class="more"><summary>{plural(len(dauer), "Dauerbaustelle", "Dauerbaustellen")} im Umkreis</summary>{ev_list([ev_card(r, g) for _, r, g in dauer[:60]])}</details>' if dauer else ''}
+  </div>
+</div>
+<div class="after">
+{f'<section class="block"><h2>Autobahnen rund um {e(city)}</h2><div class="shields">{shields}</div></section>' if shields else ''}
+{app_teaser(None)}
+</div>
+</main>"""
+    jsonld = [breadcrumb(("Städte", "/stadt/"), (city, path)), webpage_ld(title)]
+    return page(title, desc, path, body, jsonld, extra_head=MAP_HEAD, body_class="p-road p-city")
+
+
+def cities_index(roads, data):
+    rows = []
+    for city in sorted(CITIES, key=lambda c: slugify(c)):
+        groups, warns = city_hits(city, roads, data)
+        n = sum(1 for _, _, g in groups if g["heute"] and g["sev"] != "dauer") + len(warns)
+        nf = sum(1 for _, _, g in groups if g["heute"] and g["sev"] == "voll")
+        st = "rot" if nf or warns else ("gelb" if n else "gruen")
+        rows.append(f'<li><a href="/stadt/{slugify(city)}/" class="tile city st-{st}"><span>{e(city)}</span><small>{n} heute</small><i></i></a></li>')
+    title = f"Sperrungen und Baustellen nach Stadt | {SITE_NAME}"
+    desc = f"Was ist heute rund um deine Stadt los? {len(CITIES)} Städte, jeweils alle Autobahn-Meldungen im Umkreis von {NEAR_CITY_KM} km auf der Karte."
+    body = f"""
+<main>
+<section class="hero"><div class="hero-in">{crumbs_html(("Städte", "/stadt/"))}<h1>Sperrungen nach Stadt</h1>
+<p class="lage">Alle Meldungen im Umkreis von {NEAR_CITY_KM} km, für {len(CITIES)} Städte. Für andere Orte: auf der Startseite suchen oder den Standort nutzen.</p></div></section>
+<section class="block wide"><p class="sub"><span class="dot rot"></span>Vollsperrung oder Stau <span class="dot gelb"></span>eingeschränkt <span class="dot gruen"></span>frei</p><ul class="tiles cities">{''.join(rows)}</ul></section>
+</main>"""
+    return page(title, desc, "/stadt/", body, [breadcrumb(("Städte", "/stadt/")), webpage_ld(title)])
+
+
+def closures_page(roads, data):
+    allg = [(r, g) for r in roads for g in data[r]["groups"] if g["sev"] == "voll"]
+    now = [(r, g) for r, g in allg if g["active"]]
+    today = [(r, g) for r, g in allg if g["heute"] and not g["active"]]
+    week = [(r, g) for r, g in allg if g["woche"] and not g["heute"]]
+    later = sorted([(r, g) for r, g in allg if not g["woche"]], key=lambda x: x[1]["show"][0])
+    for lst in (now, today, week):
+        lst.sort(key=lambda x: (num_key(x[0]), x[1]["show"][0]))
+    sec = lambda h, lst, empty: f'<section class="block"><h2>{h} <span class="route-n">{len(lst)}</span></h2>{ev_list([ev_card(r, g) for r, g in lst], empty)}</section>'
+    title = f"Alle Vollsperrungen auf deutschen Autobahnen: jetzt, heute, geplant | {SITE_NAME}"
+    desc = f"{len(now)} Vollsperrungen laufen gerade, {len(today)} weitere heute und heute Nacht, {len(week)} diese Woche, {len(later)} geplant. Jede mit Zeitraum, Richtung und Karte. Stand {NOW:%d.%m.%Y, %H:%M} Uhr."
+    body = f"""
+<main>
+<section class="hero st-{'rot' if now or today else 'gelb'}"><div class="hero-in">{crumbs_html(("Vollsperrungen", "/vollsperrungen/"))}<h1>Vollsperrungen auf deutschen Autobahnen</h1>
+<p class="lage">{e(desc)}</p>
+<p class="quick"><a class="btn ghost" href="/wochenende/">Am Wochenende</a> <a class="btn ghost" href="/stadt/">Nach Stadt</a></p></div></section>
+<div class="after">
+{sec("Jetzt gesperrt", now, "Gerade ist keine Autobahn voll gesperrt.")}
+{sec("Heute und heute Nacht", today, "Für den Rest des Tages ist keine weitere Vollsperrung gemeldet.")}
+{sec("Diese Woche", week, "In den nächsten 7 Tagen ist keine weitere Vollsperrung gemeldet.")}
+{sec("Später geplant", later, "Nichts Weiteres angekündigt.")}
+<section class="block"><h2>Woher die Daten kommen</h2><p class="txt">Alle Sperrungen stammen von der Autobahn GmbH des Bundes und werden alle 15 Minuten neu geladen. Als Vollsperrung zählt, was die Autobahn GmbH als „Vollsperrung“ meldet oder wo alle Fahrstreifen einer Richtung gesperrt sind. Kurzfristige Änderungen vor Ort sind möglich.</p></section>
+</div>
+</main>"""
+    return page(title, desc, "/vollsperrungen/", body, [breadcrumb(("Vollsperrungen", "/vollsperrungen/")), webpage_ld(title)])
+
+
+def weekend_window():
+    """Kommendes Wochenende: Freitag 14 Uhr bis Montag 6 Uhr (am Wochenende selbst: das laufende)."""
+    wd = NOW.weekday()
+    if wd in (5, 6):
+        fri = NOW.date() - dt.timedelta(days=wd - 4)
+    elif wd == 0 and NOW.hour < 6:
+        fri = NOW.date() - dt.timedelta(days=3)
+    else:
+        fri = NOW.date() + dt.timedelta(days=(4 - wd) % 7)
+    start = dt.datetime.combine(fri, dt.time(14))
+    return start, start + dt.timedelta(days=2, hours=16)
+
+
+def weekend_page(roads, data):
+    start, end = weekend_window()
+    hits = []
+    for r in roads:
+        by_id = {i["id"]: i for i in data[r]["items"]}
+        for g in data[r]["groups"]:
+            if g["sev"] not in ("voll", "sperr"):
+                continue
+            wins = sorted({w for mid in g["items"] for w in by_id[mid]["wins"] if w[0] < end and w[1] > start})
+            if wins:
+                hits.append((r, g, wins[0]))
+    hits.sort(key=lambda x: (-SEV_RANK[x[1]["sev"]], num_key(x[0]), x[2][0]))
+    voll = [(r, g, w) for r, g, w in hits if g["sev"] == "voll"]
+    sperr = [(r, g, w) for r, g, w in hits if g["sev"] == "sperr"]
+    rng = f"{fdate(start, False)} bis {fdate(end, False)}"
+    title = f"Vollsperrungen am Wochenende ({rng}) auf deutschen Autobahnen | {SITE_NAME}"
+    desc = f"Am Wochenende {rng}: {plural(len(voll), 'Vollsperrung', 'Vollsperrungen')} und {plural(len(sperr), 'Sperrung von Auf- oder Abfahrten', 'Sperrungen von Auf- und Abfahrten')} auf deutschen Autobahnen, von Freitagnachmittag bis Montagfrüh. Stand {NOW:%d.%m.%Y, %H:%M} Uhr."
+    body = f"""
+<main>
+<section class="hero st-{'rot' if voll else 'gelb'}"><div class="hero-in">{crumbs_html(("Wochenende", "/wochenende/"))}<h1>Vollsperrungen am Wochenende</h1>
+<p class="lage">Freitag {start:%d.%m.}, {start:%H} Uhr bis Montag {end:%d.%m.}, {end:%H} Uhr: {e(desc.split(': ', 1)[1].split(' auf deutschen')[0])}. Wer am Wochenende fährt, sieht hier, wo Umwege nötig sind.</p>
+<p class="quick"><a class="btn ghost" href="/vollsperrungen/">Alle Vollsperrungen</a> <a class="btn ghost" href="/stadt/">Nach Stadt</a></p></div></section>
+<div class="after">
+<section class="block"><h2>Voll gesperrt <span class="route-n">{len(voll)}</span></h2>{ev_list([ev_card(r, g, when=fwin(w)) for r, g, w in voll], "Für dieses Wochenende ist keine Vollsperrung gemeldet.")}</section>
+<section class="block"><h2>Auf- und Abfahrten gesperrt <span class="route-n">{len(sperr)}</span></h2>{ev_list([ev_card(r, g, when=fwin(w)) for r, g, w in sperr[:80]], "Keine Sperrungen von Auf- oder Abfahrten gemeldet.")}</section>
+<section class="block"><h2>Tipp</h2><p class="txt">Vollsperrungen am Wochenende beginnen meist Freitagabend oder Samstag früh und enden Montag vor dem Berufsverkehr. Die Autobahn GmbH meldet sie oft erst wenige Tage vorher; diese Seite wird alle 15 Minuten neu gebaut.</p></section>
+</div>
+</main>"""
+    return page(title, desc, "/wochenende/", body, [breadcrumb(("Wochenende", "/wochenende/")), webpage_ld(title)])
+
+
+def write_landing_pages(roads, data):
+    """Schreibt Ereignis-, Städte-, Vollsperrungs- und Wochenendseiten; gibt deren Pfade für die Sitemap zurück."""
+    urls = []
+    for r in roads:
+        volls = [g for g in data[r]["groups"] if g["sev"] == "voll"]
+        for g in volls:
+            p = ev_href(r, g)
+            out = DIST / p.strip("/")
+            out.mkdir(parents=True, exist_ok=True)
+            others = [o for o in volls if o is not g][:8]
+            (out / "index.html").write_text(event_page(r, data[r], g, others))
+            urls.append(p)
+    for city in CITIES:
+        p = f"/stadt/{slugify(city)}/"
+        out = DIST / p.strip("/")
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "index.html").write_text(city_page(city, roads, data))
+        urls.append(p)
+    (DIST / "stadt").mkdir(exist_ok=True)
+    (DIST / "stadt" / "index.html").write_text(cities_index(roads, data))
+    (DIST / "vollsperrungen").mkdir(exist_ok=True)
+    (DIST / "vollsperrungen" / "index.html").write_text(closures_page(roads, data))
+    (DIST / "wochenende").mkdir(exist_ok=True)
+    (DIST / "wochenende" / "index.html").write_text(weekend_page(roads, data))
+    return ["/vollsperrungen/", "/wochenende/", "/stadt/"] + urls
+
+
+
 def main():
     roads = sorted(json.loads((CACHE / "roads.json").read_text()), key=num_key)
     if DIST.exists():
@@ -1191,8 +1519,9 @@ def main():
     (DIST / "suche.json").write_text(json.dumps(search, ensure_ascii=False, separators=(",", ":")))
     (DIST / "index.html").write_text(index_page(roads, data))
     legal_pages()
+    landing = write_landing_pages(roads, data)
     lastmod = NOW.replace(tzinfo=TZ).isoformat()
-    urls = [SITE_URL + "/", SITE_URL + "/app/"] + [f"{SITE_URL}/{slug(r)}/" for r in roads]
+    urls = [SITE_URL + "/", SITE_URL + "/app/"] + [f"{SITE_URL}/{slug(r)}/" for r in roads] + [SITE_URL + p for p in landing]
     (DIST / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
         + "".join(f"  <url><loc>{u}</loc><lastmod>{lastmod}</lastmod></url>\n" for u in urls) + "</urlset>\n")
@@ -1200,7 +1529,7 @@ def main():
     if BASE:  # Root-Pfade in allen HTML-Dateien auf den Unterordner umbiegen
         for f in DIST.rglob("*.html"):
             f.write_text(re.sub(r'((?:href|src|data-src)=")/(?!/)', rf"\g<1>{BASE}/", f.read_text()))
-    print(f"{len(roads)} Autobahn-Seiten erzeugt in {DIST}" + (f" (Unterordner {BASE})" if BASE else ""))
+    print(f"{len(roads)} Autobahn-Seiten und {len(landing)} Landing-Pages erzeugt in {DIST}" + (f" (Unterordner {BASE})" if BASE else ""))
 
 
 if __name__ == "__main__":
