@@ -16,6 +16,7 @@ struct RootView: View {
     @EnvironmentObject private var store: Store
     @StateObject private var nav = Nav()
     @ObservedObject private var push = PushManager.shared
+    @Environment(\.scenePhase) private var phase
 
     var body: some View {
         TabView(selection: $nav.tab) {
@@ -37,6 +38,14 @@ struct RootView: View {
         }
         .environmentObject(nav)
         .task { if store.roads.isEmpty { await store.load() } }
+        // Beim Zurückkehren in die App und alle 5 Minuten im Vordergrund neu laden, damit die Zahlen aktuell sind
+        .onChange(of: phase) { _, p in if p == .active { Task { await store.load() } } }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(300))
+                if phase == .active { await store.load() }
+            }
+        }
         // Angetippte Benachrichtigung → Autobahn öffnen
         .onChange(of: push.pendingRoad) { _, road in
             if let road { nav.open(road: road); push.pendingRoad = nil }

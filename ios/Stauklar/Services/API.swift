@@ -10,6 +10,9 @@ actor API {
         let c = URLSessionConfiguration.default
         c.timeoutIntervalForRequest = 20
         c.waitsForConnectivity = false
+        // Immer frisch vom Server; der eigene Datei-Cache dient nur als Rückfall ohne Netz
+        c.requestCachePolicy = .reloadIgnoringLocalCacheData
+        c.urlCache = nil
         return URLSession(configuration: c)
     }()
 
