@@ -45,7 +45,7 @@ a.shield:hover{text-decoration:none;filter:brightness(1.08)}
 .brand{display:flex;align-items:center;gap:9px;color:var(--ink);font-weight:600;font-size:19px;letter-spacing:-.02em}
 .brand:hover{text-decoration:none}
 .brand .klar{color:var(--accent)}
-.brand-mark{width:24px;height:24px;flex:none;display:block;background:url(/assets/icon.svg) center/contain no-repeat}
+.brand-mark{width:24px;height:24px;flex:none;display:block;background:url(/assets/logo.png) center/contain no-repeat}
 .fresh{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 
 /* ---------- Kopfbereich ---------- */
