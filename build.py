@@ -825,19 +825,18 @@ def topnav(path):
 def road_icon(road):
     """Quadratisches Autobahnschild (nur Nummer) als Tab-Icon."""
     n = road.lstrip("A")
-    fs = {1: 25, 2: 23}.get(len(n), 21)
-    w = {2: 25, 3: 29}.get(len(n))
-    fit = f' textLength="{w}" lengthAdjust="spacingAndGlyphs"' if w else ""
+    fs = {1: 22, 2: 19}.get(len(n), 14)
+    fit = ' textLength="26" lengthAdjust="spacingAndGlyphs"' if len(n) > 2 else ""
     return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
             '<rect width="32" height="32" rx="6" fill="#1f5fbf"/>'
-            '<rect x="1" y="1" width="30" height="30" rx="5" fill="none" stroke="#fff" stroke-width="1.4"/>'
-            f'<text x="16" y="16.8" text-anchor="middle" dominant-baseline="central" fill="#fff" '
+            '<rect x="2.2" y="2.2" width="27.6" height="27.6" rx="4.2" fill="none" stroke="#fff" stroke-width="1.8"/>'
+            f'<text x="16" y="16.5" text-anchor="middle" dominant-baseline="central" fill="#fff" '
             f'font-family="Helvetica Neue,Helvetica,Arial,sans-serif" font-weight="700" font-size="{fs}"{fit}>{e(n)}</text></svg>')
 
 
 def page(title, desc, path, body, jsonld=(), extra_head="", body_class="", road=None):
     canonical = SITE_URL + path
-    icons = (f'<link rel="icon" href="/assets/fav/{slug(road)}.svg?v=2" type="image/svg+xml">' if road else
+    icons = (f'<link rel="icon" href="/assets/fav/{slug(road)}.svg?v=3" type="image/svg+xml">' if road else
              '<link rel="icon" href="/favicon-32.png?v=3" sizes="32x32" type="image/png">\n<link rel="shortcut icon" href="/favicon.ico?v=3">')
     ld = "".join(f'<script type="application/ld+json">{json.dumps(j, ensure_ascii=False)}</script>' for j in jsonld)
     return f"""<!doctype html>
