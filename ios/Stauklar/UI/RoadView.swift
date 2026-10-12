@@ -24,8 +24,7 @@ struct RoadView: View {
     enum When: String, Identifiable {
         case heute = "Heute", morgen = "Morgen", woche = "7 Tage", alle = "Alles"
         var id: String { rawValue }
-        /// Im Umschalter sichtbar; „Alles“ nur intern, z. B. wenn ein Link auf eine spätere Meldung zeigt
-        static let shown: [When] = [.heute, .morgen, .woche]
+        static let shown: [When] = [.heute, .morgen, .woche, .alle]
     }
 
     var body: some View {
