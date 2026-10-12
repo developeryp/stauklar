@@ -707,7 +707,7 @@ def stop(g, labels, href=None):
 <details><summary>
 <span class="node" aria-hidden="true"></span>
 <span class="s-main"><span class="s-when">{now_badge}{e(when)}</span><span class="s-name">{e(g['title'])}</span>
-<span class="s-sub">{e(g['label'])}{(' · ' + e(g['what'])) if g['what'] else ''}</span>
+<span class="s-sub"><span class="s-cat">{e(g['label'])}</span>{(' · ' + e(g['what'])) if g['what'] else ''}</span>
 <span class="dirs">{''.join(lines)}</span></span>
 <span class="chev" aria-hidden="true"></span>
 </summary>
@@ -722,7 +722,7 @@ def warn_stop(w, labels):
     return f"""<li class="stop sev-live" id="{w['id']}" data-t="{w['t']:.2f}" data-d="{w['d']}" data-w="heute woche alle" data-q="{e((w['title'] + ' ' + w['dir']).lower())}" data-ll="{w['lat']:.4f},{w['lon']:.4f}">
 <details><summary><span class="node" aria-hidden="true"></span>
 <span class="s-main"><span class="s-when"><span class="badge live">live</span>{e(txt[0] if txt else 'aktuell')}</span><span class="s-name">{e(w['title'])}</span>
-<span class="s-sub">Stau, Unfall oder Gefahr · {dir_txt}</span></span><span class="chev" aria-hidden="true"></span></summary>
+<span class="s-sub"><span class="s-cat">Stau, Unfall oder Gefahr</span> · {dir_txt}</span></span><span class="chev" aria-hidden="true"></span></summary>
 <div class="s-body">{''.join(f'<p>{e(arrow(t))}</p>' for t in txt[1:])}{maplink(w['id'], w['geom'])}</div></details></li>"""
 
 
@@ -1248,7 +1248,7 @@ def ev_card(road, g, href=None, when=None):
     badge = '<span class="badge now">jetzt</span>' if g["active"] else ""
     if g["active"]:
         when = when.removeprefix("jetzt ")
-    sub = e(g["label"]) + (f" · {e(g['what'])}" if g["what"] else "")
+    sub = f'<span class="s-cat">{e(g["label"])}</span>' + (f" · {e(g['what'])}" if g["what"] else "")
     # Spurtext der am stärksten betroffenen Richtung (gesperrt vor verengt)
     texts = [d["laneText"] for d in g["dirs"] if d["laneText"]]
     texts.sort(key=lambda t: ("gesperrt" in t, "Spur" not in t), reverse=True)

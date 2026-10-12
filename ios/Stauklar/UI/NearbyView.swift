@@ -146,7 +146,7 @@ struct NearbyRow: View {
                         .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 }
                 Text(point.title).font(.subheadline.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
-                Text(point.label).font(.caption).foregroundStyle(.secondary)
+                Text(point.label).font(.caption.weight(.semibold)).foregroundStyle(Theme.color(point.severity))
             }
             Spacer(minLength: 0)
             Text(km < 1 ? "< 1 km" : "\(Int(km.rounded())) km")

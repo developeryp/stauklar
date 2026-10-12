@@ -7,7 +7,7 @@
   --ink:#1d1d1f; --muted:#6e6e73; --hair:rgba(0,0,0,.08); --hair-2:rgba(0,0,0,.14);
   --accent:#0071e3; --link:#0066cc; --on-accent:#ffffff;
   --sign:#1d58b4; --sign-fg:#ffffff;
-  --voll:#c0262b; --sperr:#e5342a; --kurz:#e4860c; --dauer:#c9a200; --live:#8a3ffc; --ok:#1f9d55;
+  --voll:#d70015; --sperr:#009e9e; --kurz:#ff8a00; --dauer:#9b7b56; --live:#8a3ffc; --ok:#1f9d55;
   --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
   --r:18px; --r-s:12px; --ctrl-h:60px;
   color-scheme:light;
@@ -16,7 +16,7 @@
   --bg:#000000; --bg-2:#101012; --surface:#1c1c1e; --fill:#1c1c1e; --fill-2:#2c2c2e;
   --ink:#f5f5f7; --muted:#98989d; --hair:rgba(255,255,255,.12); --hair-2:rgba(255,255,255,.2);
   --accent:#2997ff; --link:#2997ff; --sign:#2b6fd6;
-  --voll:#ff6961; --sperr:#ff5f57; --kurz:#ffa033; --dauer:#e6c200; --live:#b48cff; --ok:#30d158;
+  --voll:#ff453a; --sperr:#40c8c4; --kurz:#ffa040; --dauer:#c4a079; --live:#b48cff; --ok:#30d158;
   color-scheme:dark}}
 
 *{box-sizing:border-box}
@@ -58,7 +58,7 @@ a.shield:hover{text-decoration:none;filter:brightness(1.08)}
 .hero-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .status{display:inline-flex;align-items:center;gap:7px;font-size:14px;font-weight:600;color:var(--muted);background:var(--fill);padding:7px 12px;border-radius:999px}
 .status i{width:9px;height:9px;border-radius:50%;background:var(--ok)}
-.st-rot .status i{background:var(--sperr)} .st-gelb .status i{background:var(--kurz)} .st-gruen .status i{background:var(--ok)}
+.st-rot .status i{background:var(--voll)} .st-gelb .status i{background:var(--kurz)} .st-gruen .status i{background:var(--ok)}
 .kpis{list-style:none;padding:0;margin:30px 0 0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;max-width:900px}
 .kpis li{background:var(--fill);border-radius:var(--r);padding:18px 18px 16px;font-size:14px;line-height:1.3;color:var(--muted);min-width:0;font-weight:500}
 .kpis b{display:block;font-size:clamp(30px,3.6vw,40px);font-weight:600;letter-spacing:-.03em;line-height:1;color:var(--ink);margin-bottom:6px;font-variant-numeric:tabular-nums}
@@ -157,8 +157,8 @@ a.shield:hover{text-decoration:none;filter:brightness(1.08)}
 .s-main{display:grid;gap:3px;min-width:0}
 .s-when{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--dauer)}
 .sev-voll .s-when{color:var(--voll)} .sev-sperr .s-when{color:var(--sperr)} .sev-kurz .s-when{color:var(--kurz)} .sev-live .s-when{color:var(--live)}
-@media (prefers-color-scheme:light){.sev-dauer .s-when{color:#8a6d00} .sev-kurz .s-when{color:#b45f00}}
-.badge{font-size:11px;font-weight:700;letter-spacing:.02em;padding:3px 7px;border-radius:6px;color:#fff;background:var(--sperr);text-transform:uppercase}
+@media (prefers-color-scheme:light){.sev-dauer .s-when{color:#7a5f40} .sev-kurz .s-when{color:#c25e00} .sev-sperr .s-when{color:#007a7a}}
+.badge{font-size:11px;font-weight:700;letter-spacing:.02em;padding:3px 7px;border-radius:6px;color:#fff;background:var(--voll);text-transform:uppercase}
 .badge.live{background:var(--live)}
 .s-name{font-size:17px;font-weight:600;letter-spacing:-.015em;line-height:1.25;overflow-wrap:anywhere}
 .s-sub{font-size:14px;color:var(--muted)}
@@ -349,3 +349,12 @@ details[open] .chev{transform:rotate(225deg);margin:5px 6px 0 0}
 .chip[aria-pressed="false"] .sw{background:var(--hair-2)!important}
 .chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .nah-sub{font-size:18px;margin:22px 0 10px}.nah-sub span{color:var(--muted);font-weight:500;font-size:15px}
+
+/* Kategorie in der Karte farbig, damit man sofort sieht, worum es geht */
+.s-cat{font-weight:600;color:var(--dauer)}
+.sev-voll .s-cat{color:var(--voll)} .sev-sperr .s-cat{color:var(--sperr)} .sev-kurz .s-cat{color:var(--kurz)} .sev-live .s-cat{color:var(--live)}
+@media (prefers-color-scheme:light){.sev-dauer .s-cat{color:#7a5f40} .sev-kurz .s-cat{color:#c25e00} .sev-sperr .s-cat{color:#007a7a}}
+.stop details{border-left:4px solid var(--dauer)}
+.sev-voll details{border-left-color:var(--voll)} .sev-sperr details{border-left-color:var(--sperr)} .sev-kurz details{border-left-color:var(--kurz)} .sev-live details{border-left-color:var(--live)}
+.ev a{border-left:4px solid var(--dauer)} .ev.sev-voll a{border-left-color:var(--voll)} .ev.sev-sperr a{border-left-color:var(--sperr)} .ev.sev-kurz a{border-left-color:var(--kurz)} .ev.sev-live a{border-left-color:var(--live)}
+.ev .s-cat{font-weight:600}

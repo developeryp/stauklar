@@ -3,7 +3,7 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const COLORS = { voll: '#8e0b0b', sperr: '#e03131', kurz: '#f08c00', dauer: '#d4a300', live: '#7b3fd0' };
+  const COLORS = { voll: '#d70015', sperr: '#009e9e', kurz: '#ff8a00', dauer: '#9b7b56', live: '#8a3ffc' };
   const RANK = { dauer: 0, kurz: 1, sperr: 2, voll: 3, live: 4 };
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   // Pfad-Präfix, falls die Seite in einem Unterordner liegt (z. B. github.io/stauklar)

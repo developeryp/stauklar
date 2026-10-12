@@ -6,17 +6,18 @@ enum Theme {
 
     static func color(_ s: Severity) -> Color {
         switch s {
-        case .voll: return Color(red: 0.75, green: 0.15, blue: 0.17)
-        case .sperr: return Color(red: 0.9, green: 0.2, blue: 0.16)
-        case .kurz: return Color(red: 0.89, green: 0.52, blue: 0.05)
-        case .dauer: return Color(red: 0.79, green: 0.64, blue: 0)
+        // Fünf klar unterscheidbare Farben: Rot, Türkis, Orange, Braun, Lila
+        case .voll: return Color(red: 0.84, green: 0.0, blue: 0.08)
+        case .sperr: return Color(red: 0.0, green: 0.62, blue: 0.62)
+        case .kurz: return Color(red: 1.0, green: 0.54, blue: 0.0)
+        case .dauer: return Color(red: 0.61, green: 0.48, blue: 0.34)
         case .live: return Color(red: 0.54, green: 0.25, blue: 0.99)
         }
     }
 
     static func statusColor(_ status: String) -> Color {
         switch status {
-        case "rot": return color(.sperr)
+        case "rot": return color(.voll)
         case "gelb": return color(.kurz)
         default: return Color(red: 0.12, green: 0.62, blue: 0.33)
         }

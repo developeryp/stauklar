@@ -568,7 +568,7 @@ struct WarnRow: View {
                                 Text(warn.text.first ?? "aktuell").font(.caption.weight(.semibold)).foregroundStyle(Theme.color(.live)).lineLimit(1)
                             }
                             Text(warn.title).font(.body.weight(.semibold)).multilineTextAlignment(.leading)
-                            Text(["Stau, Unfall oder Gefahr", label].filter { !$0.isEmpty }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
+                            (Text("Stau, Unfall oder Gefahr").foregroundStyle(Theme.color(.live)).fontWeight(.semibold) + Text(label.isEmpty ? "" : " · \(label)").foregroundStyle(.secondary)).font(.caption)
                         }
                         Spacer(minLength: 0)
                         Image(systemName: "chevron.down").font(.caption.weight(.semibold)).foregroundStyle(.tertiary).rotationEffect(.degrees(expanded ? 180 : 0))
@@ -670,8 +670,9 @@ struct GroupRow: View {
                                     .font(.caption.weight(.semibold)).foregroundStyle(Theme.color(group.severity))
                             }
                             Text(group.title).font(.body.weight(.semibold)).multilineTextAlignment(.leading)
-                            Text((group.what ?? "").isEmpty ? group.label : "\(group.label) · \(group.what!)")
-                                .font(.caption).foregroundStyle(.secondary)
+                            (Text(group.label).foregroundStyle(Theme.color(group.severity)).fontWeight(.semibold)
+                             + Text((group.what ?? "").isEmpty ? "" : " · \(group.what!)").foregroundStyle(.secondary))
+                                .font(.caption)
                             VStack(alignment: .leading, spacing: 5) {
                                 ForEach(Array(group.dirs.enumerated()), id: \.offset) { _, d in
                                     // Breite Spurgrafiken: Text darunter statt daneben, damit nichts gequetscht wird
