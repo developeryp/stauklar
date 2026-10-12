@@ -72,7 +72,8 @@ struct RootView: View {
         .onOpenURL { url in
             let parts = url.pathComponents.filter { $0 != "/" }.map { $0.lowercased() }
             if let r = store.roads.first(where: { parts.contains($0.slug) }) {
-                nav.open(road: r.id)
+                // stauklar.de/a7/#<meldung> → direkt die Meldung
+                if let f = url.fragment, !f.isEmpty { nav.open(road: r.id, item: f) } else { nav.open(road: r.id) }
             } else if let ort = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "ort" })?.value,
                       let c = store.cities.first(where: { $0.name.lowercased() == ort.lowercased() }) {
                 nav.open(.place(name: c.name, lat: c.lat, lon: c.lon))

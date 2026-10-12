@@ -135,6 +135,8 @@ def build_items(road):
             c = x.get("coordinate") or {}
             items[key] = dict(
                 kind=kind, title=title, dir=x.get("subtitle", "").strip(), wins=wins, total=total_end(d),
+                # Feste Nummer der Maßnahme (z. B. „2025-048987“) für dauerhafte Links
+                src=(x.get("identifier") or "").split("--")[0],
                 where=where, info=info, project=project_line(d, {where}),
                 lat=float(c.get("lat", 0)), lon=float(c.get("long", 0)),
                 geom=simplify((x.get("geometry") or {}).get("coordinates") or []),
@@ -617,8 +619,16 @@ def group_items(items):
         key = (re.sub(r"\s+", " ", (it.get("project") or it["title"]).lower()), it["show"][0], it["show"][1])
         buckets.setdefault(key, []).append(it)
     groups = []
-    for n, (key, mem) in enumerate(buckets.items()):
-        gid = f"g{n}"
+    used = set()
+    for key, mem in buckets.items():
+        # Kennung aus dem Inhalt statt laufender Nummer: geteilte Links zeigen auch nach dem nächsten Abruf auf dieselbe Meldung
+        h = 5381
+        for ch in f"{key[0]}|{'|'.join(sorted({m.get('src') or m['title'] for m in mem}))}":
+            h = (h * 33 + ord(ch)) & 0xFFFFFFFF
+        gid, k = "g" + format(h, "x"), 2
+        while gid in used:
+            gid, k = "g" + format(h, "x") + f"-{k}", k + 1
+        used.add(gid)
         for m in mem:
             m["g"] = gid
         # Eine Richtung „gesperrt“, die andere zeigt Gegenverkehr: der Verkehr wird übergeleitet (z. B. 4+0), man kommt durch

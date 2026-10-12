@@ -44,6 +44,14 @@ struct RoadView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                ShareLink(item: Share.url(roadID), subject: Text("\(roadID) heute"),
+                          message: Text("\(roadID) heute: Sperrungen, Baustellen und Staus"),
+                          preview: SharePreview("\(roadID) heute – Stauklar", image: Image("Logo"))) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .accessibilityLabel("\(roadID) teilen")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     store.toggleFavorite(roadID)
                 } label: {
@@ -144,8 +152,8 @@ struct RoadView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(rows) { row in
                             switch row {
-                            case .group(let g): GroupRow(group: g, labels: d.labels, expanded: binding(g.id)) { focus(g.id, d.items.filter { g.items.contains($0.id) }.flatMap(\.coordinates)) }.id(g.id)
-                            case .warn(let w): WarnRow(warn: w, label: dirText(w.d, w.dir, d), expanded: binding(w.id)) { focus(w.id, w.coordinates) }.id(w.id)
+                            case .group(let g): GroupRow(group: g, labels: d.labels, road: roadID, expanded: binding(g.id)) { focus(g.id, d.items.filter { g.items.contains($0.id) }.flatMap(\.coordinates)) }.id(g.id)
+                            case .warn(let w): WarnRow(warn: w, label: dirText(w.d, w.dir, d), road: roadID, expanded: binding(w.id)) { focus(w.id, w.coordinates) }.id(w.id)
                             }
                         }
                     }
@@ -370,6 +378,7 @@ struct RoadView: View {
     private func resolveFocus(_ d: RoadDetail) -> String? {
         guard let fi = focusItem else { return nil }
         guard let t = focusTitle, !t.isEmpty else { return fi }
+        if d.groups.contains(where: { $0.id == fi }) { return fi }
         let byId = d.items.first { $0.id == fi }
         if let byId, byId.title == t || d.groups.first(where: { $0.items.contains(fi) })?.title == t { return fi }
         return d.items.first { $0.title == t }?.id ?? d.groups.first { $0.title == t }?.items.first ?? (byId == nil ? nil : fi)
@@ -377,7 +386,7 @@ struct RoadView: View {
 
     /// Aus Startseite oder Umkreis kommend: zugehörige Maßnahme finden, Filter passend setzen, aufklappen, hinzoomen
     private func openItem(_ itemID: String, in d: RoadDetail) {
-        let gid = d.groups.first { $0.items.contains(itemID) }?.id ?? (d.warns.contains { $0.id == itemID } ? itemID : nil)
+        let gid = d.groups.first { $0.id == itemID || $0.items.contains(itemID) }?.id ?? (d.warns.contains { $0.id == itemID } ? itemID : nil)
         guard let gid else { return }
         if let g = d.groups.first(where: { $0.id == gid }) {
             if !Self.inWindow(g, when) { when = g.heute ? .heute : (g.woche ? .woche : .alle) }
@@ -570,6 +579,7 @@ struct StopRow: View {
 struct WarnRow: View {
     let warn: Warn
     let label: String
+    let road: String
     @Binding var expanded: Bool
     let onMap: () -> Void
 
@@ -612,9 +622,14 @@ struct WarnRow: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Divider()
                         ForEach(warn.text.dropFirst(), id: \.self) { Text($0).font(.subheadline) }
-                        if warn.geom.count > 1 {
-                            Button("Auf der Karte", action: onMap).font(.subheadline.weight(.medium)).buttonStyle(.bordered).buttonBorderShape(.capsule)
+                        HStack(spacing: 8) {
+                            if warn.geom.count > 1 {
+                                Button("Auf der Karte", action: onMap)
+                            }
+                            ShareButton(road: road, id: warn.id, title: "\(road) · Stau & Gefahr: \(warn.title)", short: "\(road): \(warn.title)",
+                                        detail: ([Self.headline(warn.text.first ?? "")] + (label.isEmpty ? [] : [label])).filter { !$0.isEmpty }.joined(separator: " · "))
                         }
+                        .font(.subheadline.weight(.medium)).buttonStyle(.bordered).buttonBorderShape(.capsule)
                     }
                     .padding(.horizontal, 14).padding(.bottom, 14)
                 }
@@ -679,6 +694,7 @@ struct RoadMap: View {
 struct GroupRow: View {
     let group: Group
     let labels: [String: DirLabel]
+    let road: String
     @Binding var expanded: Bool
     let onMap: () -> Void
 
@@ -704,7 +720,7 @@ struct GroupRow: View {
                             Text(group.title).font(.body.weight(.semibold)).multilineTextAlignment(.leading)
                             (Text(group.label).foregroundStyle(Theme.color(group.severity)).fontWeight(.semibold)
                              + Text((group.what ?? "").isEmpty ? "" : " · \(group.what!)").foregroundStyle(.secondary))
-                                .font(.caption)
+                                .font(.caption).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
                             VStack(alignment: .leading, spacing: 5) {
                                 ForEach(Array(group.dirs.enumerated()), id: \.offset) { _, d in
                                     // Breite Spurgrafiken: Text darunter statt daneben, damit nichts gequetscht wird
@@ -761,10 +777,13 @@ struct GroupRow: View {
                             if !d.place.isEmpty { detail(dirName(d), d.place) }
                         }
                         if !group.project.isEmpty { detail("Originalmeldung", group.project) }
-                        Button("Auf der Karte", action: onMap)
-                            .font(.subheadline.weight(.medium))
-                            .buttonStyle(.bordered).buttonBorderShape(.capsule)
-                            .padding(.top, 2)
+                        HStack(spacing: 8) {
+                            Button("Auf der Karte", action: onMap)
+                            ShareButton(road: road, id: group.id, title: "\(road) · \(group.label): \(group.title)", short: "\(road): \(group.title)", detail: group.when)
+                        }
+                        .font(.subheadline.weight(.medium))
+                        .buttonStyle(.bordered).buttonBorderShape(.capsule)
+                        .padding(.top, 2)
                     }
                     .padding(.horizontal, 14).padding(.bottom, 14)
                     .transition(.opacity)
@@ -789,6 +808,33 @@ struct GroupRow: View {
         VStack(alignment: .leading, spacing: 1) {
             Text(k).font(.caption).foregroundStyle(.secondary)
             Text(v).font(.subheadline)
+        }
+    }
+}
+
+/// Links zum Teilen: führen auf die Website, damit sie bei jedem funktionieren (dort öffnet sich die Meldung direkt)
+enum Share {
+    static func url(_ road: String, id: String? = nil) -> URL {
+        var c = URLComponents(string: "https://stauklar.de/\(road.lowercased())/")!
+        c.fragment = id
+        return c.url!
+    }
+}
+
+/// „Teilen“ für eine einzelne Meldung: Text mit Autobahn, Art, Abschnitt und Zeit plus Link
+struct ShareButton: View {
+    let road: String
+    let id: String
+    let title: String
+    /// Kurz für die Vorschauzeile im Teilen-Menü
+    let short: String
+    let detail: String
+
+    var body: some View {
+        let text = detail.isEmpty ? title : "\(title)\n\(detail)"
+        ShareLink(item: Share.url(road, id: id), subject: Text(title), message: Text(text),
+                  preview: SharePreview(short, image: Image("Logo"))) {
+            Label("Teilen", systemImage: "square.and.arrow.up")
         }
     }
 }
