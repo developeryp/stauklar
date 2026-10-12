@@ -387,6 +387,12 @@ struct RoadView: View {
             selected = id
             expanded.insert(id)
         }
+        // Zur angetippten Meldung hinzoomen, damit man sieht, welcher Abschnitt gemeint ist
+        if let d = detail {
+            let members = Set(d.groups.first { $0.id == id }?.items ?? [])
+            let coords = d.items.filter { members.contains($0.id) }.flatMap(\.coordinates) + d.warns.filter { $0.id == id }.flatMap(\.coordinates)
+            if !coords.isEmpty { withAnimation { camera = .region(region(for: coords, minSpan: 0.08)) } }
+        }
         // Karte samt Sprechblase ganz ins Bild holen
         if !fullMap { scrollTarget = "map" }
     }
@@ -423,9 +429,11 @@ struct RoadView: View {
         }
     }
 
+    /// „Auf der Karte“: Meldung markieren, hinzoomen und zur Karte hochscrollen
     private func focus(_ id: String, _ coords: [CLLocationCoordinate2D]) {
         selected = id
         withAnimation { camera = .region(region(for: coords, minSpan: 0.03)) }
+        if !fullMap { scrollTarget = "map" }
     }
 
     private func fitAll(_ d: RoadDetail) {
