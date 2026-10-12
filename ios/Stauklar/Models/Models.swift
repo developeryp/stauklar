@@ -65,6 +65,8 @@ struct Group: Codable, Identifiable, Hashable {
     let upcoming: Int
     /// Weitere Zeitfenster als Text, z. B. „täglich 09:00–18:00 Uhr, vom 13.10. bis 23.10.“
     let terms: String?
+    /// z. B. „Zusätzlich zur Dauerbaustelle an dieser Stelle (läuft bis 12.11.2026)“
+    let context: String?
     let dirs: [DirLine]
     let ramps: [String]
     let project: String

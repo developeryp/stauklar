@@ -719,6 +719,7 @@ struct GroupRow: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Divider()
                         detail("Zeitraum", windowText)
+                        if let c = group.context, !c.isEmpty { detail("Hinweis", c) }
                         if group.upcoming > 1 { detail("Weitere Termine", group.terms.flatMap { $0.isEmpty ? nil : $0 } ?? "\(group.upcoming - 1) weitere") }
                         if let total = group.total, let d = ISO8601DateFormatter().date(from: total), total != group.end {
                             detail("Gesamte Maßnahme bis", d.formatted(date: .numeric, time: .omitted))

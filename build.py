@@ -651,6 +651,18 @@ def group_items(items):
             t=sum(m["t"] for m in mem) / len(mem), d=sorted({m["d"] for m in mem if m["d"]}),
             lat=mem[0]["lat"], lon=mem[0]["lon"], geom=[g for m in mem for g in (m.get("geom") or [])],
         ))
+    # Kurze Meldung zur selben Maßnahme wie eine Dauerbaustelle (z. B. heute zusätzlich eine Spur zu):
+    # Zusammenhang nennen, sonst wirkt sie wie eine eigene, unvollständige Baustelle
+    long_by_project = {}
+    for g in groups:
+        if g["sev"] == "dauer" and g["project"]:
+            long_by_project.setdefault(re.sub(r"\s+", " ", g["project"].lower()), g)
+    for g in groups:
+        g["context"] = ""
+        p = long_by_project.get(re.sub(r"\s+", " ", (g["project"] or "").lower()))
+        if p and p is not g and g["sev"] != "dauer":
+            end = p["total"] or p["show"][1]
+            g["context"] = f"Zusätzlich zur Dauerbaustelle an dieser Stelle (läuft bis {fdate(end)})"
     groups.sort(key=lambda g: g["t"])
     return groups
 
@@ -676,6 +688,8 @@ def stop(g, labels, href=None):
             name, _, rest = r.partition(": ")
             lines.append(f'<span class="dirline ramp"><span class="dl">{e(name)}</span><span class="dt">{e(rest or "eingeschränkt")}</span></span>')
     rows = [("Zeitraum", fwin(g["show"]))]
+    if g.get("context"):
+        rows.append(("Hinweis", g["context"]))
     if g["upcoming"] > 1:
         rows.append(("Weitere Termine", g["terms"] or f"{g['upcoming'] - 1} weitere"))
     if g["total"] and g["total"].date() > g["show"][1].date():
@@ -1163,7 +1177,7 @@ def api_item(it, labels):
 def api_group(g):
     return dict(id=g["id"], items=g["items"], title=g["title"], section=g["section"], what=g["what"], sev=g["sev"], label=g["label"],
                 active=g["active"], heute=g["heute"], woche=g["woche"], when=human_when(g["show"]),
-                start=iso(g["show"][0]), end=iso(g["show"][1]), total=iso(g["total"]), upcoming=g["upcoming"], terms=g["terms"],
+                start=iso(g["show"][0]), end=iso(g["show"][1]), total=iso(g["total"]), upcoming=g["upcoming"], terms=g["terms"], context=g.get("context", ""),
                 dirs=[dict(d=x["d"], raw=x["raw"], lanes=x["lanes"], laneText=x["laneText"], where=x["where"], info=x["info"]) for x in g["dirs"]],
                 ramps=g["ramps"], project=g["project"], t=round(g["t"], 2), d=g["d"], lat=round(g["lat"], 5), lon=round(g["lon"], 5))
 
