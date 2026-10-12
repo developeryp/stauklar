@@ -668,9 +668,14 @@ struct GroupRow: View {
                                     }
                                 }
                                 ForEach(group.ramps, id: \.self) { r in
-                                    HStack(spacing: 8) {
-                                        Text(r.replacingOccurrences(of: " gesperrt", with: "")).font(.caption.weight(.medium))
-                                        Text("gesperrt").font(.caption.weight(.semibold)).foregroundStyle(Theme.color(.sperr))
+                                    // „Auffahrt X gesperrt“ → rot; „Abfahrt Y: 1 Spur frei“ → neutral
+                                    if r.hasSuffix(" gesperrt") {
+                                        HStack(spacing: 8) {
+                                            Text(String(r.dropLast(9))).font(.caption.weight(.medium))
+                                            Text("gesperrt").font(.caption.weight(.semibold)).foregroundStyle(Theme.color(.sperr))
+                                        }
+                                    } else {
+                                        Text(r).font(.caption.weight(.medium)).foregroundStyle(.secondary)
                                     }
                                 }
                             }

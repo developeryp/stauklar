@@ -608,7 +608,11 @@ def stop(g, labels):
         txt = e(d["laneText"]) if d["laneText"] else ("gesperrt" if g["sev"] == "voll" else "Baustelle")
         lines.append(f'<span class="dirline"><span class="dl">{name}</span>{graphic}<span class="dt">{txt}</span></span>')
     for r in g["ramps"]:
-        lines.append(f'<span class="dirline ramp"><span class="dl">{e(r.replace(" gesperrt", ""))}</span><span class="dt closed">gesperrt</span></span>')
+        if r.endswith(" gesperrt"):
+            lines.append(f'<span class="dirline ramp"><span class="dl">{e(r[:-9])}</span><span class="dt closed">gesperrt</span></span>')
+        else:
+            name, _, rest = r.partition(": ")
+            lines.append(f'<span class="dirline ramp"><span class="dl">{e(name)}</span><span class="dt">{e(rest or "eingeschränkt")}</span></span>')
     rows = [("Zeitraum", fwin(g["show"]))]
     if g["upcoming"] > 1:
         rows.append(("Weitere Termine", f"{g['upcoming'] - 1} weitere"))
