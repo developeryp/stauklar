@@ -687,11 +687,13 @@ def stop(g, labels, href=None):
         else:
             name, _, rest = r.partition(": ")
             lines.append(f'<span class="dirline ramp"><span class="dl">{e(name)}</span><span class="dt">{e(rest or "eingeschränkt")}</span></span>')
-    rows = [("Zeitraum", fwin(g["show"]))]
+    # Mehrere Termine: „Jetzt“/„Nächster Termin“ und „Danach“, damit die Reihenfolge klar ist
+    first = "Zeitraum" if g["upcoming"] <= 1 else ("Jetzt" if g["active"] else "Nächster Termin")
+    rows = [(first, fwin(g["show"]))]
     if g.get("context"):
         rows.append(("Hinweis", g["context"]))
     if g["upcoming"] > 1:
-        rows.append(("Weitere Termine", g["terms"] or f"{g['upcoming'] - 1} weitere"))
+        rows.append(("Danach", g["terms"] or f"{g['upcoming'] - 1} weitere Termine"))
     if g["total"] and g["total"].date() > g["show"][1].date():
         rows.append(("Gesamte Maßnahme bis", fdate(g["total"])))
     for d in g["dirs"]:
@@ -1296,7 +1298,7 @@ def event_page(road, d, g, others):
 
     lines, rows = [], [("Zeitraum", fwin(g["show"]))]
     if g["upcoming"] > 1:
-        rows.append(("Weitere Termine", g["terms"] or f"{g['upcoming'] - 1} weitere"))
+        rows.append(("Danach", g["terms"] or f"{g['upcoming'] - 1} weitere Termine"))
     if g["total"] and g["total"].date() > en.date():
         rows.append(("Gesamte Maßnahme bis", fdate(g["total"])))
     dir_names = []
