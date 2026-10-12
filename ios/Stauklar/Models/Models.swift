@@ -213,9 +213,10 @@ struct City: Codable, Identifiable, Hashable {
 }
 
 /// Autobahn-Seite mit einer bestimmten Meldung, die aufgeklappt und auf der Karte markiert wird
-struct RoadTarget: Hashable {
+struct RoadTarget: Hashable, Identifiable {
     let road: String
     let item: String?
+    var id: String { "\(road)/\(item ?? "")" }
 }
 
 /// Fahrmodus

@@ -12,6 +12,8 @@ struct DriveView: View {
     /// Übersicht (ca. 5 km, von oben) oder Nah (3D in Fahrtrichtung wie eine Navigation)
     @AppStorage("driveClose") private var closeView = false
     @State private var showMap = true
+    /// Meldung, die vorab angeschaut wird (Tipp auf Karte oder Liste)
+    @State private var preview: RoadTarget?
 
     var body: some View {
         ZStack {
@@ -29,7 +31,10 @@ struct DriveView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 12) {
-                            ForEach(model.upcoming) { u in UpcomingRow(u: u) }
+                            ForEach(model.upcoming) { u in
+                                UpcomingRow(u: u)
+                                    .onTapGesture { if let r = model.roadID { preview = RoadTarget(road: r, item: u.item) } }
+                            }
                             if model.upcoming.isEmpty {
                                 VStack(spacing: 8) {
                                     Image(systemName: "checkmark.circle.fill").font(.system(size: 54)).foregroundStyle(.green)
@@ -48,6 +53,10 @@ struct DriveView: View {
         .navigationTitle("Fahrmodus")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.black, for: .navigationBar)
+        .sheet(item: $preview) { t in
+            NavigationStack { RoadView(roadID: t.road, focusItem: t.item) }
+                .presentationDragIndicator(.visible)
+        }
         .onAppear { model.start(store: store); UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear { model.stop(); UIApplication.shared.isIdleTimerDisabled = false }
     }
@@ -59,9 +68,13 @@ struct DriveView: View {
             // Meldungen der anderen Autobahnen in der Umgebung als Punkte; die eigene Strecke kommt als Linien
             ForEach(model.nearPoints, id: \.key) { p in
                 Annotation("", coordinate: p.coordinate) {
-                    Circle().fill(Theme.color(p.severity)).frame(width: 10, height: 10)
-                        .overlay(Circle().stroke(.white, lineWidth: 1.5))
-                        .opacity(p.heute ? 1 : 0.5)
+                    Button { preview = RoadTarget(road: p.road, item: p.id) } label: {
+                        Circle().fill(Theme.color(p.severity)).frame(width: 12, height: 12)
+                            .overlay(Circle().stroke(.white, lineWidth: 1.5))
+                            .opacity(p.heute ? 1 : 0.5)
+                            .padding(8).contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             // Alle heutigen Meldungen der Autobahn; was voraus liegt kräftig, der Rest gedämpft
@@ -73,15 +86,23 @@ struct DriveView: View {
                         .stroke(Theme.color(it.severity).opacity(ahead ? 1 : 0.35), style: StrokeStyle(lineWidth: ahead ? 7 : 5, lineCap: .round, lineJoin: .round))
                 }
             }
-            // Nah-Ansicht: 3D-Gebäude verdecken Linien am Boden, deshalb zusätzlich ein Marker am Anfang jeder Meldung voraus
-            if closeView {
-                ForEach(model.mapItems.filter { model.aheadItems.contains($0.id) && $0.geom.count > 1 }) { it in
-                    Annotation("", coordinate: model.start(of: it)) {
-                        Image(systemName: it.severity == .dauer || it.severity == .kurz ? "cone.fill" : "xmark.octagon.fill")
-                            .font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
-                            .padding(7).background(Theme.color(it.severity), in: Circle())
-                            .overlay(Circle().stroke(.white, lineWidth: 2))
+            // Marker am Anfang jeder Meldung der eigenen Strecke: antippbar zum Vorabschauen;
+            // in der Nah-Ansicht groß, weil 3D-Gebäude die Linien am Boden verdecken können
+            ForEach(model.mapItems.filter { $0.geom.count > 1 }) { it in
+                Annotation("", coordinate: model.start(of: it)) {
+                    Button { if let r = model.roadID { preview = RoadTarget(road: r, item: it.id) } } label: {
+                        if closeView {
+                            Image(systemName: it.severity == .dauer || it.severity == .kurz ? "cone.fill" : "xmark.octagon.fill")
+                                .font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
+                                .padding(7).background(Theme.color(it.severity), in: Circle())
+                                .overlay(Circle().stroke(.white, lineWidth: 2))
+                        } else {
+                            Circle().fill(Theme.color(it.severity)).frame(width: 14, height: 14)
+                                .overlay(Circle().stroke(.white, lineWidth: 2))
+                                .opacity(model.aheadItems.isEmpty || model.aheadItems.contains(it.id) ? 1 : 0.5)
+                        }
                     }
+                    .buttonStyle(.plain).padding(6).contentShape(Circle())
                 }
             }
             ForEach(model.mapWarns) { w in
@@ -190,6 +211,8 @@ struct DriveView: View {
 
 struct Upcoming: Identifiable {
     let id: String
+    /// Erste Einzelmeldung der Maßnahme, zum Öffnen auf der Streckenseite
+    let item: String?
     let km: Double
     let title: String
     let label: String
@@ -352,12 +375,12 @@ final class DriveModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         for g in d.groups where g.heute && (g.d.isEmpty || g.d.contains(dir)) {
             guard let km = ahead(g.t) else { continue }
             let line = g.dirs.first { $0.d == dir } ?? g.dirs.first
-            list.append(Upcoming(id: g.id, km: km, title: g.title, label: g.label, when: g.when, severity: g.severity,
+            list.append(Upcoming(id: g.id, item: g.items.first, km: km, title: g.title, label: g.label, when: g.when, severity: g.severity,
                                  lanes: line?.lanes ?? [], laneText: line?.laneText ?? "", active: g.active))
         }
         for w in d.warns where w.d.isEmpty || w.d == dir {
             guard let km = ahead(w.t) else { continue }
-            list.append(Upcoming(id: w.id, km: km, title: w.title, label: w.text.first ?? "Stau oder Gefahr", when: "", severity: .live, lanes: [], laneText: "", active: true))
+            list.append(Upcoming(id: w.id, item: nil, km: km, title: w.title, label: w.text.first ?? "Stau oder Gefahr", when: "", severity: .live, lanes: [], laneText: "", active: true))
         }
         upcoming = list.sorted { $0.km < $1.km }
         aheadItems = Set(d.groups.filter { g in list.contains { $0.id == g.id } }.flatMap(\.items))
