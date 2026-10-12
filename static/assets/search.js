@@ -126,7 +126,7 @@
 </div>
 ${roadList.length ? `<p class="nah-roads">Autobahnen in der Nähe: ${roadList.slice(0, 10).map(([rd, d]) => `<a class="shield" href="${B}/${rd.toLowerCase()}/" title="${Math.round(d)} km entfernt">${esc(rd)}</a>`).join('')}</p>` : ''}
 <ul class="nr-list">${relevant.slice(0, 40).map(row).join('')}</ul>
-${dauer.length ? `<details class="more"><summary>${dauer.length} Dauerbaustellen in der Nähe</summary><ul class="nr-list">${dauer.slice(0, 60).map(row).join('')}</ul></details>` : ''}`;
+${dauer.length ? `<h3 class="nah-sub">Dauerbaustellen <span>${dauer.length}</span></h3><ul class="nr-list">${dauer.slice(0, 60).map(row).join('')}</ul>` : ''}`;
     panel.querySelector('.nah-close').addEventListener('click', () => { go(B + '/?'); });
     AB.mark(center.lat, center.lon, r);
     AB.flyTo(center.lat, center.lon, r > 30 ? 8 : 9);

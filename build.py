@@ -695,7 +695,11 @@ def features(items, warns, road=None, ids=None):
                      when=(it["text"][0] if live and it["text"] else "" if live else human_when(it["show"])))
         if road:
             props.update(road=road, url=f"{BASE}/{slug(road)}/#{it['id']}")
-        out.append(dict(type="Feature", properties=props, geometry=dict(type="LineString", coordinates=g)))
+        line = g
+        if road and not live and it["sev"] == "dauer" and len(g) > 3:
+            # Deutschlandkarte: Dauerbaustellen vereinfacht (Anfang, Mitte, Ende), sonst wird die Datei für Handys zu groß
+            line = [g[0], g[len(g) // 2], g[-1]]
+        out.append(dict(type="Feature", properties=props, geometry=dict(type="LineString", coordinates=line)))
         out.append(dict(type="Feature", properties=dict(props, pt=1), geometry=dict(type="Point", coordinates=g[len(g) // 2])))
     return {"type": "FeatureCollection", "features": out}
 
@@ -1002,7 +1006,7 @@ def index_page(roads, data):
 <section class="block wide" id="karte">
   <div class="today-head"><h2>Karte: heute und heute Nacht</h2><p class="sub">Hineinzoomen zeigt den genauen Abschnitt, Antippen die Details.</p></div>
   <div id="map" class="map-home" data-src="/heute.json" role="region" aria-label="Deutschlandkarte"></div>
-  <div class="legend chips" id="sevf" role="group" aria-label="Karte filtern">{''.join(f'<button type="button" class="chip" aria-pressed="true" data-sev="{k}"><i class="sw {k}"></i>{t}</button>' for k, t in SEV_CHIPS if k != "dauer")}<span class="hint">Antippen zum Ein- und Ausblenden</span></div>
+  <div class="legend chips" id="sevf" role="group" aria-label="Karte filtern">{''.join(f'<button type="button" class="chip" aria-pressed="true" data-sev="{k}"><i class="sw {k}"></i>{t}</button>' for k, t in SEV_CHIPS)}<span class="hint">Antippen zum Ein- und Ausblenden</span></div>
 </section>
 
 <section class="block wide nah" id="nah" hidden aria-live="polite"></section>
@@ -1366,7 +1370,7 @@ def city_page(city, roads, data):
     <h2 class="route-h">Jetzt und heute Nacht <span class="route-n">{len(today) + len(warns)}</span></h2>
     {ev_list([warn_card(r, w) for _, r, w in warns] + [ev_card(r, g) for _, r, g in today[:40]], "Für heute ist im Umkreis keine Sperrung und keine Baustelle gemeldet. Gute Fahrt!")}
     {f'<h2 class="route-h">Nächste 7 Tage <span class="route-n">{len(week)}</span></h2>{ev_list([ev_card(r, g) for _, r, g in week[:40]])}' if week else ''}
-    {f'<details class="more"><summary>{plural(len(dauer), "Dauerbaustelle", "Dauerbaustellen")} im Umkreis</summary>{ev_list([ev_card(r, g) for _, r, g in dauer[:60]])}</details>' if dauer else ''}
+    {f'<h2 class="route-h">Dauerbaustellen <span class="route-n">{len(dauer)}</span></h2>{ev_list([ev_card(r, g) for _, r, g in dauer[:60]])}' if dauer else ''}
   </div>
 </div>
 <div class="after">
@@ -1544,7 +1548,7 @@ def main():
     (DIST / "punkte.json").write_text(json.dumps(punkte, ensure_ascii=False, separators=(",", ":")))
     germany = {"type": "FeatureCollection", "features": []}
     for r in roads:
-        today = [i for i in data[r]["items"] if i["w_heute"] and i["sev"] != "dauer"]
+        today = [i for i in data[r]["items"] if i["w_heute"]]
         germany["features"] += features(today, data[r]["warns"], road=r)["features"]
     (DIST / "heute.json").write_text(json.dumps(germany, ensure_ascii=False, separators=(",", ":")))
     write_api(roads, data, punkte)

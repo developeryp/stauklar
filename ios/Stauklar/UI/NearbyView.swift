@@ -98,17 +98,12 @@ struct NearbyView: View {
             }
 
             if !dauer.isEmpty {
-                DisclosureGroup {
-                    VStack(spacing: 8) {
-                        ForEach(dauer.prefix(60), id: \.point.key) { h in
-                            NavigationLink(value: RoadTarget(road: h.point.road, item: h.point.id)) { NearbyRow(point: h.point, km: h.km) }
-                        }
+                SectionTitle(text: "Dauerbaustellen", detail: "\(dauer.count)").padding(.top, 6)
+                VStack(spacing: 8) {
+                    ForEach(dauer.prefix(60), id: \.point.key) { h in
+                        NavigationLink(value: RoadTarget(road: h.point.road, item: h.point.id)) { NearbyRow(point: h.point, km: h.km) }
                     }
-                    .padding(.top, 8)
-                } label: {
-                    Text("\(dauer.count) Dauerbaustellen in der Nähe").font(.body.weight(.medium))
                 }
-                .tint(.primary)
             }
         }
     }
