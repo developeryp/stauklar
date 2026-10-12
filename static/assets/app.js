@@ -414,7 +414,12 @@
 
       if (route) {
         apply(false);
-        const target = location.hash.slice(1);
+        // Ziel aus dem Link: Maßnahme (g…) oder Stau (w…); ältere Links nennen die Einzelmeldung (m…) → zugehörige Maßnahme
+        let target = decodeURIComponent(location.hash.slice(1));
+        if (target && !document.getElementById(target)) {
+          const f = data.features.find(f => f.properties.id === target);
+          if (f && f.properties.g) target = f.properties.g;
+        }
         if (target && document.getElementById(target)) { openStop(target); focusOnMap(target, false); }
         else overview();
       } else if (el.dataset.focus) {

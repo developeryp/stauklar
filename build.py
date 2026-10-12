@@ -745,7 +745,7 @@ def features(items, warns, road=None, ids=None):
                      title=it["title"], kind=SEV_LABEL["live"] if live else (it.get("label") or SEV_LABEL[it["sev"]]),
                      when=(it["text"][0] if live and it["text"] else "" if live else human_when(it["show"])))
         if road:
-            props.update(road=road, url=f"{BASE}/{slug(road)}/#{it['id']}")
+            props.update(road=road, url=f"{BASE}/{slug(road)}/#{it.get('g', it['id'])}")
         line = g
         if road and not live and it["sev"] == "dauer" and len(g) > 3:
             # Deutschlandkarte: Dauerbaustellen mit weniger Stützpunkten, sonst wird die Datei für Handys zu groß
