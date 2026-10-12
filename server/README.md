@@ -1,0 +1,43 @@
+# Stauklar Push-Server
+
+Supabase-Projekt „Stauklar“ (`lcpfcgbfsibmankfwsqn`, Region Frankfurt, kostenloser Tarif).
+
+- `migrations/001_push.sql`: Tabellen `devices` (Token + Lieblingsstrecken) und `sent` (schon verschickte Meldungen),
+  Funktion `get_secret()` für den Vault, Erweiterungen pg_cron und pg_net.
+- `functions/notify/index.ts`: Edge Function. Läuft alle 15 Minuten (pg_cron-Job `stauklar-notify`):
+  - sofort ein Push bei jeder neuen Vollsperrung heute auf einer Lieblingsstrecke
+  - um 06:30 Ortszeit die Morgenlage mit allen Sperrungen heute auf den eigenen Strecken
+- Die App meldet ihr Push-Token und die Favoriten per REST an `devices` (anon-Schlüssel, nur Schreiben).
+
+## Geheimnisse (Supabase Vault)
+
+| Name | Inhalt |
+|---|---|
+| `cron_secret` | Zufallswert, schützt den Aufruf der Funktion (schon angelegt) |
+| `apns_key_id` | Key ID des APNs-Schlüssels aus dem Apple-Developer-Konto, z. B. `AB12CD34EF` |
+| `apns_key` | Inhalt der `.p8`-Datei (inkl. BEGIN/END-Zeilen) |
+
+APNs-Schlüssel anlegen: developer.apple.com → Certificates, Identifiers & Profiles → Keys → „+“ →
+Name „Stauklar Push“, „Apple Push Notifications service (APNs)“ anhaken → Continue → Register → Download.
+Die .p8-Datei lässt sich nur einmal herunterladen.
+
+Eintragen im Supabase SQL-Editor:
+
+```sql
+select vault.create_secret('AB12CD34EF', 'apns_key_id');
+select vault.create_secret('-----BEGIN PRIVATE KEY-----
+…
+-----END PRIVATE KEY-----', 'apns_key');
+```
+
+## Testen
+
+Morgenlage sofort auslösen (im SQL-Editor):
+
+```sql
+select net.http_post(
+  url := 'https://lcpfcgbfsibmankfwsqn.supabase.co/functions/v1/notify?force=digest',
+  headers := jsonb_build_object('Content-Type','application/json','x-cron-secret',(select decrypted_secret from vault.decrypted_secrets where name='cron_secret')),
+  body := '{}'::jsonb);
+select status_code, content::text from net._http_response order by id desc limit 1;
+```

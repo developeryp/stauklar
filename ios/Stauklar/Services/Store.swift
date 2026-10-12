@@ -12,7 +12,10 @@ final class Store: ObservableObject {
     @Published var loading = false
     @Published var error: String?
     @Published var favorites: [String] {
-        didSet { UserDefaults.standard.set(favorites, forKey: "favorites") }
+        didSet {
+            UserDefaults.standard.set(favorites, forKey: "favorites")
+            Task { await PushManager.shared.sync() }
+        }
     }
 
     init() {

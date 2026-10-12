@@ -3,6 +3,7 @@ import MapKit
 
 struct HomeView: View {
     @EnvironmentObject private var store: Store
+    @ObservedObject private var push = PushManager.shared
     @State private var query = ""
     @State private var path = NavigationPath()
     @State private var camera: MapCameraPosition = .region(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 51.2, longitude: 10.4), span: MKCoordinateSpan(latitudeDelta: 8.2, longitudeDelta: 8.2)))
@@ -21,6 +22,9 @@ struct HomeView: View {
             .searchable(text: $query, prompt: "Autobahn oder Stadt")
             .refreshable { await store.load() }
             .task { if store.roads.isEmpty { await store.load() } }
+            .onChange(of: push.pendingRoad) { _, road in
+                if let road { path.append(road); push.pendingRoad = nil }
+            }
         }
     }
 
@@ -78,7 +82,7 @@ struct HomeView: View {
                 Map(position: $camera, interactionModes: [.zoom]) {
                     UserAnnotation()
                     ForEach(pts) { p in
-                        MapCircle(center: p.coordinate, radius: p.severity == .kurz ? 2200 : 3200)
+                        MapCircle(center: p.coordinate, radius: p.severity == .kurz ? 5500 : 8000)
                             .foregroundStyle(Theme.color(p.severity).opacity(0.9))
                             .stroke(.white, lineWidth: 1)
                     }
@@ -122,7 +126,35 @@ struct HomeView: View {
                         }
                     }
                 }
+                pushCard
             }
+        }
+    }
+
+    /// Einladung zu Benachrichtigungen, sobald es Lieblingsstrecken gibt
+    @ViewBuilder
+    private var pushCard: some View {
+        if push.authorized {
+            HStack(spacing: 10) {
+                Image(systemName: "bell.badge.fill").foregroundStyle(Theme.accent)
+                Text("Du bekommst morgens um 6:30 Uhr die Lage auf deinen Strecken und sofort Bescheid bei neuen Vollsperrungen.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 4)
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Morgens Bescheid bekommen?").font(.headline)
+                Text("Stauklar meldet sich um 6:30 Uhr, wenn auf deinen Strecken heute etwas gesperrt ist, und sofort bei neuen Vollsperrungen.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                Button {
+                    Task { await push.enable() }
+                } label: {
+                    Text("Benachrichtigungen einschalten").font(.subheadline.weight(.semibold)).padding(.horizontal, 4)
+                }
+                .buttonStyle(.borderedProminent).buttonBorderShape(.capsule)
+                if let e = push.lastError { Text(e).font(.caption).foregroundStyle(.secondary) }
+            }
+            .card()
         }
     }
 

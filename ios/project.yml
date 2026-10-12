@@ -19,6 +19,10 @@ targets:
     sources:
       - path: Stauklar
         excludes: ["Info.plist"]
+    entitlements:
+      path: Stauklar/Stauklar.entitlements
+      properties:
+        aps-environment: development
     info:
       path: Stauklar/Info.plist
       properties:
