@@ -1001,7 +1001,7 @@ def index_page(roads, data):
 <section class="block wide" id="karte">
   <div class="today-head"><h2>Karte: heute und heute Nacht</h2><p class="sub">Hineinzoomen zeigt den genauen Abschnitt, Antippen die Details.</p></div>
   <div id="map" class="map-home" data-src="/heute.json" role="region" aria-label="Deutschlandkarte"></div>
-  <div class="legend"><span><i class="sw voll"></i>Vollsperrung</span><span><i class="sw sperr"></i>Sperrung</span><span><i class="sw kurz"></i>kurzfristige Baustelle</span><span><i class="sw live"></i>Stau/Gefahr</span><span class="hint">Antippen für Details</span></div>
+  <div class="legend chips" id="sevf" role="group" aria-label="Karte filtern">{''.join(f'<button type="button" class="chip" aria-pressed="true" data-sev="{k}"><i class="sw {k}"></i>{t}</button>' for k, t in (("voll", "Vollsperrung"), ("sperr", "Sperrung"), ("kurz", "kurzfristig"), ("live", "Stau/Gefahr")))}<span class="hint">Antippen zum Ein- und Ausblenden</span></div>
 </section>
 
 <section class="block wide nah" id="nah" hidden aria-live="polite"></section>

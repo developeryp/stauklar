@@ -236,11 +236,32 @@
 
   const colorExpr = ['match', ['get', 'sev'], ...Object.entries(COLORS).flat(), '#888'];
 
+  // Filter der Startseiten-Karte nach Art (Vollsperrung, Sperrung, kurzfristig, Stau)
+  const sevBox = $('#sevf');
+  let sevOn = null;
+  if (sevBox) {
+    try { const s = JSON.parse(localStorage.getItem('sevf') || 'null'); if (Array.isArray(s)) sevOn = s; } catch (err) {}
+    const sync = () => $$('.chip', sevBox).forEach(b => b.setAttribute('aria-pressed', String(!sevOn || sevOn.includes(b.dataset.sev))));
+    sync();
+    sevBox.addEventListener('click', ev => {
+      const b = ev.target.closest('.chip');
+      if (!b) return;
+      const all = $$('.chip', sevBox).map(x => x.dataset.sev);
+      const cur = new Set(sevOn || all);
+      cur.has(b.dataset.sev) ? cur.delete(b.dataset.sev) : cur.add(b.dataset.sev);
+      sevOn = cur.size === all.length ? null : [...cur];
+      try { localStorage.setItem('sevf', JSON.stringify(sevOn)); } catch (err) {}
+      sync();
+      if (map && map.getLayer('lines')) setFilters();
+    });
+  }
+
   function setFilters() {
     const base = visibleIds ? ['in', ['get', 'g'], ['literal', visibleIds]] : true;
-    map.setFilter('casing', ['all', ['!', ['has', 'pt']], base]);
-    map.setFilter('lines', ['all', ['!', ['has', 'pt']], base]);
-    map.setFilter('points', ['all', ['has', 'pt'], base]);
+    const sev = sevOn ? ['in', ['get', 'sev'], ['literal', sevOn]] : true;
+    map.setFilter('casing', ['all', ['!', ['has', 'pt']], base, sev]);
+    map.setFilter('lines', ['all', ['!', ['has', 'pt']], base, sev]);
+    map.setFilter('points', ['all', ['has', 'pt'], base, sev]);
   }
 
   function bbox(fs) {
@@ -401,6 +422,7 @@
       } else {
         overview();
       }
+      if (sevOn) setFilters();
 
       for (const id of ['lines', 'points']) {
         map.on('click', id, ev => {

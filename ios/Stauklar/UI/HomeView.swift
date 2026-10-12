@@ -5,6 +5,7 @@ struct HomeView: View {
     @EnvironmentObject private var store: Store
     @ObservedObject private var push = PushManager.shared
     @EnvironmentObject private var nav: Nav
+    @AppStorage("mapFilter") private var mapFilterRaw = "kurz,live,sperr,voll"
     @State private var query = ""
     @State private var camera: MapCameraPosition = .region(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 51.2, longitude: 10.4), span: MKCoordinateSpan(latitudeDelta: 8.2, longitudeDelta: 8.2)))
     /// Meter pro Bildschirmpunkt beim aktuellen Zoom, damit die Punkte immer gleich groß bleiben
@@ -90,7 +91,8 @@ struct HomeView: View {
 
     /// Deutschlandkarte: alles, was heute gilt, als farbige Punkte. Tipp auf die Karte zeigt den Umkreis dort.
     private var germanyMap: some View {
-        let pts = store.points.filter { $0.heute && $0.severity != .dauer }
+        let today = store.points.filter { $0.heute }
+        let pts = today.filter { mapFilter.contains($0.severity.rawValue) }
         return VStack(alignment: .leading, spacing: 10) {
             SectionTitle(text: "Deutschland heute", detail: pts.isEmpty ? nil : "\(pts.count)")
             MapReader { proxy in
@@ -126,19 +128,42 @@ struct HomeView: View {
             }
             .frame(height: mapHeight)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            HStack(spacing: 14) {
-                legend(.voll, "Vollsperrung"); legend(.sperr, "Sperrung"); legend(.kurz, "kurzfristig"); legend(.live, "Stau")
-                Spacer()
+            // Filter: Antippen blendet die Art ein oder aus
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach([(Severity.voll, "Vollsperrung"), (.sperr, "Sperrung"), (.kurz, "kurzfristig"), (.live, "Stau"), (.dauer, "Dauerbaustelle")], id: \.0) { s, t in
+                        filterChip(s, t)
+                    }
+                }
             }
-            .font(.caption).foregroundStyle(.secondary)
             Text("Tipp auf einen Punkt, um die Meldung zu öffnen, oder auf eine freie Stelle für den Umkreis dort. Zum Scrollen neben der Karte wischen.")
                 .font(.caption).foregroundStyle(.tertiary)
         }
     }
 
-    private func legend(_ s: Severity, _ t: String) -> some View {
-        HStack(spacing: 5) { Circle().fill(Theme.color(s)).frame(width: 8, height: 8); Text(t) }
+    private func filterChip(_ s: Severity, _ t: String) -> some View {
+        let on = mapFilter.contains(s.rawValue)
+        return Button {
+            var f = mapFilter
+            if on { f.remove(s.rawValue) } else { f.insert(s.rawValue) }
+            mapFilterRaw = f.sorted().joined(separator: ",")
+        } label: {
+            HStack(spacing: 6) {
+                Circle().fill(on ? Theme.color(s) : Color.secondary.opacity(0.4)).frame(width: 8, height: 8)
+                Text(t).font(.footnote.weight(.medium))
+            }
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(on ? Theme.color(s).opacity(0.14) : Color(.secondarySystemBackground), in: Capsule())
+            .overlay(Capsule().stroke(on ? Theme.color(s).opacity(0.5) : .clear, lineWidth: 1))
+            .foregroundStyle(on ? Color.primary : Color.secondary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(t)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
+
+    /// Welche Arten auf der Deutschlandkarte sichtbar sind (gespeichert)
+    private var mapFilter: Set<String> { Set(mapFilterRaw.components(separatedBy: ",").filter { !$0.isEmpty }) }
 
     private var favorites: some View {
         VStack(alignment: .leading, spacing: 10) {

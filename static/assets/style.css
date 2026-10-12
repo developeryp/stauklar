@@ -341,3 +341,10 @@ details[open] .chev{transform:rotate(225deg);margin:5px 6px 0 0}
 .tile.city{flex-direction:column;align-items:flex-start;padding:12px 14px;gap:2px;font-weight:600}
 .tile.city small{font-weight:500;color:var(--muted);font-size:12px}
 .txt{max-width:68ch;color:var(--muted);font-size:16px;line-height:1.5}
+
+/* Filter-Chips unter der Karte */
+.legend.chips{gap:8px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:14px;font-weight:500;color:var(--ink);background:var(--fill);border:1px solid var(--hair);border-radius:999px;padding:6px 12px;cursor:pointer}
+.chip[aria-pressed="false"]{color:var(--muted);background:transparent}
+.chip[aria-pressed="false"] .sw{background:var(--hair-2)!important}
+.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
