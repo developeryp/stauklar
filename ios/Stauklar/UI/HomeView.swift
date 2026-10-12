@@ -84,7 +84,7 @@ struct HomeView: View {
                 let t = store.totals
                 HStack(spacing: 10) {
                     KPI(value: t.voll, label: "Vollsperrungen", color: Theme.color(.voll))
-                    KPI(value: t.kurz, label: "Baustellen bis morgen früh", color: Theme.color(.kurz))
+                    KPI(value: t.kurz, label: "Baustellen heute", color: Theme.color(.kurz))
                     KPI(value: t.live, label: "Staus & Gefahren", color: Theme.color(.live))
                 }
             }

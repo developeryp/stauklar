@@ -185,7 +185,7 @@ struct RoadView: View {
                 .fixedSize(horizontal: false, vertical: true)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                 KPI(value: d.voll, label: "Vollsperrungen", color: Theme.color(.voll))
-                KPI(value: d.kurz, label: "Baustellen bis morgen früh", color: Theme.color(.kurz))
+                KPI(value: d.kurz, label: "Baustellen heute", color: Theme.color(.kurz))
                 KPI(value: d.warns.count, label: "Staus & Gefahren", color: Theme.color(.live))
                 KPI(value: d.dauer, label: "Dauerbaustellen", color: Theme.color(.dauer))
             }

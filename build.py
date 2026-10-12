@@ -784,7 +784,7 @@ def lage(road, items, warns):
         pl = [p for i in short for p in places_of(i["title"])]
         hot = max(set(pl), key=pl.count) if pl else ""
         where = f" Am meisten los ist rund um {hot}." if hot and pl.count(hot) >= 2 else ""
-        out.append(f"Bis morgen früh gibt es {plural(len(short), 'Baustelle oder gesperrte Auf-/Abfahrt', 'Baustellen und gesperrte Auf-/Abfahrten')}.{when}{where}")
+        out.append(f"Heute und heute Nacht gibt es {plural(len(short), 'Baustelle oder gesperrte Auf-/Abfahrt', 'Baustellen und gesperrte Auf-/Abfahrten')}.{when}{where}")
     if warns:
         out.append(f"Gerade {'liegt' if len(warns) == 1 else 'liegen'} {plural(len(warns), 'Meldung', 'Meldungen')} zu Stau, Unfall oder Gefahren vor.")
     if dauer:
@@ -909,7 +909,7 @@ def road_page(road, d, near):
         ex = "; ".join(f"{i['title']} ({human_when(i['show'])})" for i in closed[:3])
         faq.append((f"Ist die {road} heute gesperrt?", f"Ja, heute und heute Nacht gibt es {plural(len(closed), 'Sperrung', 'Sperrungen')}, zum Beispiel: {ex}."))
     elif n_short:
-        faq.append((f"Ist die {road} heute gesperrt?", f"Eine Sperrung ist nicht gemeldet, aber {plural(n_short, 'Baustelle', 'Baustellen')} bis morgen früh, oft mit gesperrten Spuren."))
+        faq.append((f"Ist die {road} heute gesperrt?", f"Eine Sperrung ist nicht gemeldet, aber {plural(n_short, 'Baustelle', 'Baustellen')} heute und heute Nacht, oft mit gesperrten Spuren."))
     else:
         faq.append((f"Ist die {road} heute gesperrt?", f"Für heute sind auf der {road} keine Sperrungen oder Baustellen gemeldet (Stand {NOW:%d.%m.%Y, %H:%M} Uhr)."))
     faq.append((f"Wie viele Baustellen gibt es auf der {road}?", f"Heute gelten {plural(len(today), 'Baustelle oder Sperrung', 'Baustellen und Sperrungen')}, davon {n_dauer} Dauerbaustellen. In den nächsten 7 Tagen sind es {len(week)}."))
@@ -939,7 +939,7 @@ def road_page(road, d, near):
     <p class="lage">{e(lage_txt)}</p>
     <ul class="kpis">
       <li class="k-voll"><b>{n_full}</b>Vollsperrungen</li>
-      <li class="k-kurz"><b>{n_short}</b>Baustellen bis morgen früh</li>
+      <li class="k-kurz"><b>{n_short}</b>Baustellen heute</li>
       <li class="k-live"><b id="live-count">{len(warns)}</b>Staus &amp; Gefahren</li>
       <li class="k-dauer"><b>{n_dauer}</b>Dauerbaustellen</li>
     </ul>
@@ -1043,7 +1043,7 @@ def index_page(roads, data):
     <p class="quick links"><a href="/vollsperrungen/">Alle Vollsperrungen</a><a href="/wochenende/">Am Wochenende</a><a href="/stadt/">Nach Stadt</a></p>
     </div>
     <aside class="now-box" aria-label="Lage in Deutschland">
-      <p class="now-h">Deutschland bis morgen früh</p>
+      <p class="now-h">Deutschland heute und heute Nacht</p>
       <ul class="kpis stack"><li class="k-voll"><b>{n_full}</b>Vollsperrungen</li><li class="k-kurz"><b>{n_short}</b>Baustellen &amp; gesperrte Auf-/Abfahrten</li><li class="k-live"><b>{n_warn}</b>Staus &amp; Gefahren gerade</li></ul>
     </aside>
   </div>
@@ -1406,7 +1406,7 @@ def city_page(city, roads, data):
     <div class="hero-top"><span class="status"><i></i>{e(city)} · {NEAR_CITY_KM} km Umkreis</span></div>
     <h1>Rund um {e(city)}: Sperrungen und Baustellen heute</h1>
     <p class="lage">{e(lage_txt)}</p>
-    <ul class="kpis"><li class="k-voll"><b>{n_full}</b>Vollsperrungen</li><li class="k-kurz"><b>{n_short}</b>Baustellen bis morgen früh</li><li class="k-live"><b>{len(warns)}</b>Staus &amp; Gefahren</li><li class="k-dauer"><b>{len(dauer)}</b>Dauerbaustellen</li></ul>
+    <ul class="kpis"><li class="k-voll"><b>{n_full}</b>Vollsperrungen</li><li class="k-kurz"><b>{n_short}</b>Baustellen heute</li><li class="k-live"><b>{len(warns)}</b>Staus &amp; Gefahren</li><li class="k-dauer"><b>{len(dauer)}</b>Dauerbaustellen</li></ul>
   </div>
 </section>
 <div class="split one">
