@@ -101,15 +101,12 @@ struct DriveView: View {
                 withAnimation(.linear(duration: 1)) { camera = .camera(MapCamera(centerCoordinate: here, distance: 60_000, heading: 0, pitch: 0)) }
                 return
             }
-            // Autobahn erkannt, Richtung noch nicht (z. B. im Stand): normale Übersicht nach Norden
-            guard model.message == nil else {
-                withAnimation(.linear(duration: 1)) { camera = .camera(MapCamera(centerCoordinate: here, distance: 6500, heading: 0, pitch: 0)) }
-                return
-            }
-            // Blickpunkt voraus, damit das Auto unten im Bild steht und mehr Strecke vor dir zu sehen ist
-            let c = here.moved(meters: closeView ? 200 : 1800, heading: model.heading)
+            // Richtung noch nicht erkannt (z. B. im Stand): Karte nach Norden, Auto in der Mitte; sonst in Fahrtrichtung mit Blick voraus
+            let known = model.message == nil
+            let heading = known ? model.heading : 0
+            let c = known ? here.moved(meters: closeView ? 200 : 1800, heading: heading) : here
             withAnimation(.linear(duration: 1)) {
-                camera = .camera(MapCamera(centerCoordinate: c, distance: closeView ? 650 : 6500, heading: model.heading, pitch: closeView ? 50 : 0))
+                camera = .camera(MapCamera(centerCoordinate: c, distance: closeView ? 650 : 6500, heading: heading, pitch: closeView ? 50 : 0))
             }
         }
         .onChange(of: closeView) { _, _ in following = true; model.cameraTick += 1 }
