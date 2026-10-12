@@ -1048,10 +1048,11 @@ def index_page(roads, data):
         it = per_measure([i for i in d["items"] if i["w_heute"]])
         nf = sum(i["sev"] == "voll" for i in it)
         ns = sum(i["sev"] in ("sperr", "kurz") for i in it)
+        nd = sum(i["sev"] == "dauer" for i in it)
         cards.append(f"""<a class="hot st-{st}" href="/{slug(r)}/">
 <span class="hot-top"><span class="shield lg">{e(r)}</span><span class="status"><i></i>{st_txt}</span></span>
 <span class="hot-txt">{e(lage(r, d['items'], d['warns']).split('. ')[0].rstrip('.'))}.</span>
-<span class="hot-n"><span><b>{nf}</b> voll gesperrt</span><span><b>{ns}</b> Baustellen</span><span><b>{len(d['warns'])}</b> Staus</span></span></a>""")
+<span class="hot-n"><span><b>{nf}</b> voll gesperrt</span><span><b>{ns}</b> Baustellen</span><span><b>{len(d['warns'])}</b> Staus</span><span><b>{nd}</b> Dauerbaustellen</span></span></a>""")
 
     tiles = []
     for r in roads:

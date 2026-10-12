@@ -283,6 +283,14 @@ struct RoadRow: View {
     let road: RoadSummary
     var showLage = false
 
+    /// (Art, Anzahl, Wort) für alle Arten mit mindestens einer Meldung
+    private var counts: [(Severity, Int, String)] {
+        [(Severity.voll, road.voll, road.voll == 1 ? "Vollsperrung" : "Vollsperrungen"),
+         (.kurz, road.kurz, road.kurz == 1 ? "Baustelle" : "Baustellen"),
+         (.live, road.live, road.live == 1 ? "Stau" : "Staus"),
+         (.dauer, road.dauer, road.dauer == 1 ? "Dauerbaustelle" : "Dauerbaustellen")].filter { $0.1 > 0 }
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             Shield(id: road.id, size: 15)
@@ -291,12 +299,19 @@ struct RoadRow: View {
                     Circle().fill(Theme.statusColor(road.status)).frame(width: 7, height: 7)
                     Text(road.statusText).font(.subheadline.weight(.semibold))
                 }
-                if showLage {
-                    Text(road.lage.components(separatedBy: ". ").first ?? road.lage)
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                } else {
-                    Text("\(road.voll) voll gesperrt · \(road.kurz) Baustellen · \(road.live) Staus")
-                        .font(.caption).foregroundStyle(.secondary)
+                // Überall gleich: Zahlen je Art statt eines Satzes
+                do {
+                    // Nur was es gibt, in den Farben der Arten; Dauerbaustellen zählen mit
+                    Flow(spacing: 10, lineSpacing: 3) {
+                        ForEach(counts, id: \.0) { sev, n, word in
+                            HStack(spacing: 4) {
+                                Circle().fill(Theme.color(sev)).frame(width: 6, height: 6)
+                                Text("\(n) \(word)")
+                            }
+                        }
+                        if counts.isEmpty { Text("Keine Meldungen") }
+                    }
+                    .font(.caption).foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 0)
@@ -305,5 +320,32 @@ struct RoadRow: View {
         .padding(14)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .foregroundStyle(Color.primary)
+    }
+}
+
+/// Einfacher Zeilenumbruch für kleine Elemente (wie Text, nur mit Views)
+struct Flow: Layout {
+    var spacing: CGFloat = 8
+    var lineSpacing: CGFloat = 4
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxW = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, lineH: CGFloat = 0, width: CGFloat = 0
+        for v in subviews {
+            let s = v.sizeThatFits(.unspecified)
+            if x > 0 && x + s.width > maxW { x = 0; y += lineH + lineSpacing; lineH = 0 }
+            x += s.width + spacing; lineH = max(lineH, s.height); width = max(width, x - spacing)
+        }
+        return CGSize(width: min(width, maxW), height: y + lineH)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, lineH: CGFloat = 0
+        for v in subviews {
+            let s = v.sizeThatFits(.unspecified)
+            if x > bounds.minX && x + s.width > bounds.maxX { x = bounds.minX; y += lineH + lineSpacing; lineH = 0 }
+            v.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(s))
+            x += s.width + spacing; lineH = max(lineH, s.height)
+        }
     }
 }
