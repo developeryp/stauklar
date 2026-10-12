@@ -9,6 +9,8 @@ struct DriveView: View {
     @StateObject private var model = DriveModel()
     @State private var camera: MapCameraPosition = .userLocation(followsHeading: true, fallback: .automatic)
     @State private var following = true
+    /// Übersicht (ca. 5 km, von oben) oder Nah (3D in Fahrtrichtung wie eine Navigation)
+    @AppStorage("driveClose") private var closeView = false
     @State private var showMap = true
 
     var body: some View {
@@ -68,12 +70,43 @@ struct DriveView: View {
             }
         }
         .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
-        .frame(height: 280)
+        .frame(height: closeView ? 360 : 280)
         // Kamera: ca. 5 km Sicht, in Fahrtrichtung gedreht, folgt der Position
         .onChange(of: model.cameraTick) { _, _ in
             guard following, let c = model.location?.coordinate else { return }
             withAnimation(.linear(duration: 1)) {
-                camera = .camera(MapCamera(centerCoordinate: c, distance: 6500, heading: model.heading, pitch: 0))
+                camera = .camera(MapCamera(centerCoordinate: c, distance: closeView ? 900 : 6500, heading: model.heading, pitch: closeView ? 60 : 0))
+            }
+        }
+        .onChange(of: closeView) { _, _ in following = true; model.cameraTick += 1 }
+        .overlay(alignment: .top) {
+            Picker("Ansicht", selection: $closeView) {
+                Text("Übersicht").tag(false)
+                Text("Nah").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 180)
+            .padding(.top, 10)
+        }
+        .overlay(alignment: .bottom) {
+            // Nah-Ansicht: nächste Meldung mit großer Spuranzeige, wie ein Spurassistent
+            if closeView, let next = model.upcoming.first {
+                HStack(spacing: 14) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(next.km < 0.3 ? "jetzt" : (next.km < 10 ? String(format: "%.1f km", next.km).replacingOccurrences(of: ".", with: ",") : "\(Int(next.km.rounded())) km"))
+                            .font(.system(size: 28, weight: .bold, design: .rounded)).monospacedDigit()
+                        Text(next.title).font(.footnote.weight(.semibold)).lineLimit(1)
+                    }
+                    Spacer(minLength: 6)
+                    if !next.lanes.isEmpty {
+                        LaneGraphic(symbols: next.lanes).scaleEffect(1.6).padding(.horizontal, 24)
+                    } else {
+                        Circle().fill(Theme.color(next.severity)).frame(width: 14, height: 14)
+                    }
+                }
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(10)
             }
         }
         .onMapCameraChange(frequency: .onEnd) { _ in }
