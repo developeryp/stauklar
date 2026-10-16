@@ -138,7 +138,9 @@ struct SettingsView: View {
         Binding(
             get: {
                 let p = push.digestTime.split(separator: ":").compactMap { Int($0) }
-                return Calendar.current.date(from: DateComponents(hour: p.first ?? 6, minute: p.count > 1 ? p[1] : 30)) ?? Date()
+                // Auf den heutigen Tag legen: ein Datum ohne Tag landet im Jahr 1, dort gilt die historische Ortszeit
+                // (z. B. Madrid −0:14:44 statt +1:00) und der Wähler verschiebt die Uhrzeit um über eine Stunde
+                return Calendar.current.date(bySettingHour: p.first ?? 6, minute: p.count > 1 ? p[1] : 30, second: 0, of: Date()) ?? Date()
             },
             set: { d in
                 let c = Calendar.current.dateComponents([.hour, .minute], from: d)
