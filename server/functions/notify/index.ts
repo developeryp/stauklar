@@ -1,7 +1,7 @@
 // Stauklar Push-Server (Supabase Edge Function).
 // Läuft jede Minute per pg_cron. Zwei Aufgaben:
 //  1. Sofortmeldung: neue Vollsperrung (oder, wenn gewählt, jede neue Meldung) heute auf einer Lieblingsstrecke → Push.
-//  2. Morgenlage genau zur Wunschzeit des Geräts (Standard 06:30 Ortszeit): ein Push mit allen Sperrungen heute auf den eigenen Strecken.
+//  2. Morgenlage genau zur Wunschzeit des Geräts (Standard 06:30 Ortszeit): jeden Tag ein Push mit der Lage auf allen eigenen Strecken, auch wenn dort nichts gesperrt ist.
 // Geheimnisse (APNs-Schlüssel, Cron-Secret) liegen im Supabase Vault, abrufbar über public.get_secret().
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -200,10 +200,20 @@ Deno.serve(async (req) => {
           newSent.push(k);
         }
       }
-      if (cl.length) {
-        const first = cl[0];
-        digestLines.push(`${rid}: ${cl.length} ${cl.length === 1 ? "Sperrung" : "Sperrungen"} heute, z. B. ${first.title} (${first.when})`);
-      }
+      // Morgenlage: jede Strecke bekommt eine Zeile, auch wenn dort nichts gesperrt ist
+      const today = (r.groups ?? []).filter((g) => g.heute);
+      const n = (sev: string) => today.filter((g) => g.sev === sev).length;
+      const nVoll = n("voll"), nSperr = n("sperr"), nKurz = n("kurz"), nDauer = n("dauer"), nLive = (r.warns ?? []).length;
+      const parts: string[] = [];
+      if (nVoll) parts.push(`${nVoll} ${nVoll === 1 ? "Vollsperrung" : "Vollsperrungen"}`);
+      if (nSperr) parts.push(`${nSperr} ${nSperr === 1 ? "Auf-/Abfahrt zu" : "Auf-/Abfahrten zu"}`);
+      if (nKurz) parts.push(`${nKurz} ${nKurz === 1 ? "Baustelle" : "Baustellen"}`);
+      if (nLive) parts.push(`${nLive} ${nLive === 1 ? "Stau/Gefahr" : "Staus/Gefahren"}`);
+      if (nDauer) parts.push(`${nDauer} ${nDauer === 1 ? "Dauerbaustelle" : "Dauerbaustellen"}`);
+      const firstVoll = today.find((g) => g.sev === "voll");
+      digestLines.push(!parts.length ? `${rid}: frei, nichts gemeldet`
+        : !nVoll && !nSperr && !nKurz && !nLive ? `${rid}: keine Sperrungen, ${parts.join(", ")}`
+        : `${rid}: ${parts.join(", ")}${firstVoll ? ` – z. B. ${firstVoll.title} (${firstVoll.when})` : ""}`);
     }
 
     if (digestTime && d.digest_on !== false && digestLines.length && !sent.has(`${d.token}|${digestKey}`)) {
