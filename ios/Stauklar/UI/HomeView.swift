@@ -40,7 +40,7 @@ struct HomeView: View {
             .navigationDestination(for: DriveTarget.self) { _ in DriveView() }
             .navigationDestination(for: NearbyTarget.self) { NearbyView(target: $0) }
             .searchable(text: $query, prompt: "Autobahn oder Stadt")
-            .refreshable { await store.load() }
+            .refreshable { await Task { await store.load() }.value }
         }
     }
 

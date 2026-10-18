@@ -26,6 +26,7 @@ actor API {
             Self.writeCache(path, data)
             return try decoder.decode(T.self, from: data)
         } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled { throw error }
             // Übergangsweise: solange stauklar.de kein HTTPS-Zertifikat hat, per http versuchen
             if var c = URLComponents(url: url, resolvingAgainstBaseURL: false) {
                 c.scheme = "http"
