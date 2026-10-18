@@ -1,0 +1,33 @@
+# Zuverlässiger 15-Minuten-Takt.
+# GitHub startet geplante Läufe („schedule“) oft mit Stunden Verspätung. Dieser Ablauf läuft
+# daher knapp 6 Stunden am Stück und stößt in dieser Zeit alle 15 Minuten „Website aktualisieren“ an.
+# Der stündliche Zeitplan sorgt nur dafür, dass immer ein Nachfolger bereitsteht: Dank „concurrency“
+# wartet er, bis der laufende Takt endet, und übernimmt dann nahtlos.
+name: Takt alle 15 Minuten
+
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+concurrency:
+  group: takt
+  cancel-in-progress: false
+
+jobs:
+  takt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - name: Alle 15 Minuten neu bauen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          end=$(( $(date +%s) + 345 * 60 ))
+          while [ "$(date +%s)" -lt "$end" ]; do
+            gh workflow run build.yml --repo "$GITHUB_REPOSITORY" --ref main || echo "Anstoßen fehlgeschlagen, nächster Versuch in 15 Minuten"
+            sleep 900
+          done

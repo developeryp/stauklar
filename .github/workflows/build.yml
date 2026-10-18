@@ -1,4 +1,5 @@
-# Baut die Website alle 15 Minuten neu und veröffentlicht sie auf GitHub Pages.
+# Baut die Website neu und veröffentlicht sie auf GitHub Pages. Angestoßen alle 15 Minuten von takt.yml;
+# der eigene Zeitplan ist nur Rückfallebene (GitHub verschiebt ihn oft um Stunden).
 name: Website aktualisieren
 
 on:
