@@ -953,8 +953,10 @@ def road_page(road, d, near):
     if d["ax"]:
         ends = ("Norden", "Süden") if d["ax"]["ns"] else ("Westen", "Osten")
 
-    title = f"{road} heute: Sperrungen, Baustellen & Staus | {SITE_NAME}"
-    desc = f"{lage_txt} Stand {NOW:%d.%m.%Y, %H:%M} Uhr."
+    title = f"{road} Sperrung heute: Vollsperrungen, Baustellen & Stau aktuell | {SITE_NAME}"
+    cnt = lambda n, one, many: f"keine {one}" if n == 0 else plural(n, one, many)
+    counts = f"{road} aktuell: {cnt(n_full, 'Vollsperrung', 'Vollsperrungen')}, {cnt(n_short, 'Baustelle', 'Baustellen')} und {cnt(len(warns), 'Stau', 'Staus')} heute."
+    desc = f"{counts} {lage_txt} Mit Karte und Spurgrafik. Stand {NOW:%d.%m.%Y, %H:%M} Uhr."
     if len(desc) > 300:
         desc = desc[:297].rsplit(" ", 1)[0] + " …"
 
@@ -1136,9 +1138,9 @@ def index_page(roads, data):
 </section>
 </main>
 <script src="/assets/search.js?v={VER}" defer></script>"""
-    desc = f"Heute {n_full} Vollsperrungen, {n_short} Baustellen und {n_warn} Staus auf deutschen Autobahnen. Jeder Abschnitt auf der Karte, mit Spurgrafik. Stand {NOW:%d.%m.%Y, %H:%M} Uhr."
+    desc = f"Autobahn-Sperrungen aktuell: heute {n_full} Vollsperrungen, {n_short} Baustellen und {n_warn} Staus in Deutschland. Alles auf der Karte, auch Baustellen in deiner Nähe. Stand {NOW:%d.%m.%Y, %H:%M} Uhr."
     jsonld = [{"@context": "https://schema.org", "@type": "WebSite", "name": SITE_NAME, "url": SITE_URL + "/", "inLanguage": "de-DE"}]
-    return page("Stauklar: Sperrungen, Baustellen & Staus auf der Karte", desc, "/", body, jsonld, extra_head=MAP_HEAD, body_class="p-home")
+    return page("Autobahn-Sperrungen heute: aktuelle Karte mit Baustellen & Stau | Stauklar", desc, "/", body, jsonld, extra_head=MAP_HEAD, body_class="p-home")
 
 
 def app_teaser(road):
@@ -1461,7 +1463,7 @@ def city_page(city, roads, data):
     if roads_near:
         lage_txt += " Betroffene Autobahnen: " + ", ".join(roads_near[:8]) + ("." if len(roads_near) <= 8 else " und weitere.")
 
-    title = f"Sperrungen & Baustellen rund um {city} heute | {SITE_NAME}"
+    title = f"{city} Sperrung aktuell: Autobahn heute, Baustellen & Stau | {SITE_NAME}"
     desc = f"{lage_txt} Jede Meldung auf der Karte, mit Spurgrafik. Stand {NOW:%d.%m.%Y, %H:%M} Uhr."
     shields = "".join(f'<a class="shield" href="/{slug(r)}/">{e(r)}</a>' for r in roads_near)
     body = f"""
