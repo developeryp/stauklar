@@ -126,7 +126,16 @@ Deno.serve(async (req) => {
     }
     return Response.json(stats);
   }
-  const sentRows = (await (await sb("sent?select=token,key,sent_at")).json()) as { token: string; key: string; sent_at: string }[];
+  // Seitenweise lesen: die REST-Schnittstelle liefert höchstens 1000 Zeilen je Abfrage. Ohne das galt alles
+  // darüber als „neu“ und wurde jede Minute erneut verschickt.
+  const sentRows: { token: string; key: string; sent_at: string }[] = [];
+  for (let off = 0; ; off += 1000) {
+    const r = await sb(`sent?select=token,key,sent_at&order=token.asc,key.asc&limit=1000&offset=${off}`);
+    if (!r.ok) return Response.json({ ...stats, error: `sent nicht lesbar (${r.status})` }, { status: 500 });
+    const rows = (await r.json()) as { token: string; key: string; sent_at: string }[];
+    if (!rows.length) break;
+    sentRows.push(...rows);
+  }
   const sent = new Set(sentRows.map((s) => `${s.token}|${s.key}`));
   // Was noch aktuell ist, darf beim Aufräumen nach 14 Tagen nicht verschwinden (sonst käme es erneut als „neu“)
   const stale = new Set(sentRows.filter((s) => Date.parse(s.sent_at) < Date.now() - 7 * 864e5).map((s) => `${s.token}|${s.key}`));
@@ -221,8 +230,9 @@ Deno.serve(async (req) => {
       newSent.push(digestKey);
     }
 
+    // Notbremse: höchstens 3 Nachrichten je Gerät und Lauf, egal was oben schiefgeht
     let gone = false;
-    for (const m of messages) {
+    for (const m of messages.slice(0, 3)) {
       const res = await push(jwt, d, m.title, m.body, m.road, m.item, m.itemTitle);
       if (res === "ok") stats.pushed++;
       else if (res === "gone") { gone = true; break; }
@@ -234,8 +244,10 @@ Deno.serve(async (req) => {
       continue;
     }
     if (newSent.length) {
-      await sb("sent", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates" },
+      // Fehlschlag beim Merken heißt: beim nächsten Lauf käme alles erneut. Dann lieber laut scheitern.
+      const ins = await sb("sent", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates" },
         body: JSON.stringify(newSent.map((k) => ({ token: d.token, key: k }))) });
+      if (!ins.ok) console.error("sent speichern fehlgeschlagen", ins.status, await ins.text());
     }
   }
   if (refresh.length) {
