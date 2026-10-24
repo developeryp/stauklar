@@ -106,7 +106,7 @@ struct SettingsView: View {
                     Text("Über Stauklar")
                 } footer: {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"))")
+                        Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
                         Text("Daten: Die Autobahn GmbH des Bundes, alle 15 Minuten neu, Staus live. Stauklar ist ein privates Angebot ohne Verbindung zur Autobahn GmbH. Alle Angaben ohne Gewähr.")
                     }
                 }
